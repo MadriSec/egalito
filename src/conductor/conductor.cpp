@@ -33,6 +33,8 @@
 #include "log/log.h"
 #include "log/temp.h"
 
+#include "gtirb/gtirb_deserializer.h"
+
 IFuncList *egalito_ifuncList __attribute__((weak));
 
 Conductor::Conductor() : mainThreadPointer(0), ifuncList(nullptr) {
@@ -169,6 +171,18 @@ void Conductor::parseEgalitoArchive(const char *archive) {
     }
 
     ConductorPasses(this).newArchivePasses(program);
+}
+
+void Conductor::parseGtirb(GtirbDeserializer &gtirb_ds) {
+    Program *newProgram = gtirb_ds.deserialize();
+
+    if (!newProgram) {
+        LOG(1, "Error parsing archive [" << gtirb_ds.getFilename() << "]");
+        return;  // No data present
+    }
+
+    this->program = newProgram;
+    ConductorPasses(this).newGtirbPasses(program);
 }
 
 void Conductor::resolvePLTLinks() {

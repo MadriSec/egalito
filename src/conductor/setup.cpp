@@ -145,6 +145,17 @@ void ConductorSetup::parseEgalitoArchive(const char *archive) {
     conductor->resolveVTables();
 }
 
+void ConductorSetup::parseGtirb(GtirbDeserializer &gtirb_ds) {
+    this->conductor = new Conductor();
+    this->elf = nullptr;
+    this->egalito = nullptr;
+
+    conductor->parseGtirb(gtirb_ds);
+
+    // TODO: How to handle libraries?
+    // TODO: Do we need the calls to resolveXYZ here?
+}
+
 void ConductorSetup::setBaseAddresses() {
     unsigned long i = 0;
     for(auto module : CIter::modules(conductor->getProgram())) {

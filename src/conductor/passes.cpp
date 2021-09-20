@@ -112,6 +112,10 @@ void ConductorPasses::newArchivePasses(Program *program) {
     }
 }
 
+void ConductorPasses::newGtirbPasses(Program *program) {
+    // TODO: What needs to be done here?
+}
+
 void ConductorPasses::newExecutablePasses(Program *program) {
     conductor->fixDataSections(false);
     for(auto module : CIter::children(program)) {

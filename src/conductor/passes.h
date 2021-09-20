@@ -12,6 +12,7 @@ public:
     ConductorPasses(Conductor *conductor) : conductor(conductor) {}
     void newElfPasses(ElfSpace *space);
     void newArchivePasses(Program *program);
+    void newGtirbPasses(Program *program);
     void newExecutablePasses(Program *program);
     void newMirrorPasses(Program *program);
     void reloadedArchivePasses(Module *module);

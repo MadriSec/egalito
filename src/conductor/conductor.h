@@ -13,6 +13,7 @@ class Module;
 class ChunkVisitor;
 class IFuncList;
 struct EgalitoTLS;
+class GtirbDeserializer;
 
 class Conductor {
 private:
@@ -36,6 +37,7 @@ public:
     Module *parseAddOnLibrary(ElfMap *elf);
     Module *parseExtraLibrary(ElfMap *elf, const std::string &name = "");
     void parseEgalitoArchive(const char *archive);
+    void parseGtirb(GtirbDeserializer &gtirb_ds);
 
     void resolvePLTLinks();
     void resolveTLSLinks();
