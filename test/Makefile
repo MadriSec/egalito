@@ -3,7 +3,7 @@
 include ../env.mk
 
 DIRS = framework unit scripts codegen
-.PHONY: all $(DIRS)
+.PHONY: all clean $(DIRS)
 all: unit
 
 unit: framework
