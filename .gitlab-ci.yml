@@ -195,8 +195,8 @@ test-package-ubuntu18:
   image: $UBUNTU18_IMAGE
   needs: [package-ubuntu18]
   script: 
-    - for file in libegalito*.deb; do apt-get install ./${file}; done
-    - for file in egalito*.deb; do apt-get install ./${file}; done  
+    - for file in libegalito*.deb; do apt-get install -y ./${file}; done
+    - for file in egalito*.deb; do apt-get install -y ./${file}; done  
     - git clean -fdx || true
     - cd test/example && make -j && cd -
     - etelf -m test/example/hellocpp hello
