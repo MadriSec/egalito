@@ -43,11 +43,7 @@ OUTPUTS = $(RUNNER)
 all: test-all .symlinks
 	@true
 
-test-all: $(OUTPUTS) | rebuild-src
-
-ifeq ($(findstring clean,$(MAKECMDGOALS)),)
-Makefile: rebuild-src
-endif
+test-all: $(OUTPUTS)
 
 $(ALL_OBJECTS): | $(BUILDTREE)
 $(BUILDTREE):
@@ -58,8 +54,7 @@ $(BUILDTREE):
 	@echo "LN-S" $(OUTPUTS)
 	@ln -sf $(BUILDDIR)runner
 
-.PHONY: rebuild-src
-rebuild-src:
+../../src/$(BUILDDIR)libegalito.so:
 	$(call short-make,../../src)
 
 # Dependencies
