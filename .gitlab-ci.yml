@@ -5,11 +5,11 @@ include:
 variables:
     GIT_SUBMODULE_STRATEGY: recursive
     GIT_STRATEGY: clone
-    DEBIAN_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/debian_buster
-    UBUNTU18_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/ubuntu18
-    UBUNTU20_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/ubuntu20
-    # AARCH64_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/aarch64
-    # ARM_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/egalito/arm
+    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/debian_buster
+    UBUNTU18_IMAGE: $CI_REGISTRY_IMAGE/ubuntu18
+    UBUNTU20_IMAGE: $CI_REGISTRY_IMAGE/ubuntu20
+    # AARCH64_IMAGE: $CI_REGISTRY_IMAGE/aarch64
+    # ARM_IMAGE: $CI_REGISTRY_IMAGE/egalito/arm
     DOCKER_DIR: ./test/docker
 
 workflow:
