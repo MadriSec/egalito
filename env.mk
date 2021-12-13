@@ -10,6 +10,10 @@ EGALITO_ROOT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 #   PROFILE=1
 #   STACK_PROTECTOR=1
 
+# Disabling the loader by default, because it uses static libraries
+# which makes building with gtirb much more difficult
+USE_LOADER=0
+
 # To cross-compile, set e.g. CROSS=aarch64-linux-gnu-
 #   for loader support, also set RTLD_TARGET to an appropriate simulator for
 #   running binaries (e.g. qemu-user-*).
