@@ -9,6 +9,7 @@ NC='\033[0m'
 WORKING_DIR=$PWD
 SCRIPT_DIR="$( cd "$( dirname "$0" )" && pwd )"
 ETELF_APP="$SCRIPT_DIR/../../app/etelf"
+SUMMARY_APP="$SCRIPT_DIR/parse-lifter-eval-results.py"
 
 OUTPUT_FILE=${OUTPUT_FILE:-"lifter_eval_results.txt"}
 SKIP_EXTRACT=${SKIP_EXTRACT:-false}
@@ -82,6 +83,9 @@ done
 # Cleanup
 rm -r $COMPILE_DIR
 rm -r $REBUILT_BINS_DIR
+
+# Summarize results
+python3 $SUMMARY_APP $OUTPUT_FILE
 
 if [ ${#failed_tests[@]} == 0 ]; then
     echo "All tests passed"
