@@ -2,7 +2,7 @@
 
 ######
 # Build and run a dev-container that uses the cache-friendly dockerfile definition
-# located in thuis directory as a base.
+# located in this directory as a base.
 #
 # Mounts your local filesystem into a container with common dev dependencies installed
 # on top of a static base image

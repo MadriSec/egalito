@@ -11,4 +11,4 @@
 # https://git.grammatech.com/research/development-tools/dev-container
 ######
 
-dev-container --base-image registry.gitlab.com/metis/egalito/egalito/gtirb/ubuntu:18.04 --tag egalito-gtirb-ubuntu-18.04 "$@"
+dev-container --base-image registry.gitlab.com/grammatech/egalito/egalito/gtirb/ubuntu:18.04 --tag egalito-gtirb-ubuntu-18.04 "$@"
