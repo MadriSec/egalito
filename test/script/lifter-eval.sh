@@ -40,9 +40,11 @@ mkdir -p $COMPILE_DIR
 mkdir -p $REBUILT_BINS_DIR
 
 # Extract pre-compiled binaries
-if [ ! $SKIP_EXTRACT ]; then
+if [ $SKIP_EXTRACT == false ]; then
     rm -r $BUILT_BINS_DIR/*
     tar -xf $BUILT_BINS_ARCHIVE -C $LIFTER_EVAL_DIR
+else
+    echo "Skipping Extraction"
 fi
 
 # Lift and rebuild all subject ELFs and required tests
