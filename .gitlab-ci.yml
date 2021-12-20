@@ -5,11 +5,11 @@ include:
 variables:
     GIT_SUBMODULE_STRATEGY: recursive
     GIT_STRATEGY: clone
-    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/debian_buster
-    UBUNTU18_IMAGE: $CI_REGISTRY_IMAGE/ubuntu18
-    UBUNTU20_IMAGE: $CI_REGISTRY_IMAGE/ubuntu20
-    # AARCH64_IMAGE: $CI_REGISTRY_IMAGE/aarch64
-    # ARM_IMAGE: $CI_REGISTRY_IMAGE/egalito/arm
+    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/gtirb-test/debian:buster
+    UBUNTU18_IMAGE: $CI_REGISTRY_IMAGE/gtirb-test/ubuntu:18.04
+    UBUNTU20_IMAGE: $CI_REGISTRY_IMAGE/gtirb-test/ubuntu:20.04
+    # AARCH64_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/aarch64
+    # ARM_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/egalito/arm
     DOCKER_DIR: ./test/docker
 
 workflow:
@@ -87,7 +87,7 @@ coverage:
     - genhtml -o coverage egalito.info
 
 
-.build-template: &build-template
+.build-template:
   stage: build
   needs: []
   artifacts:
@@ -113,15 +113,15 @@ coverage:
     - when: always
 
 build-ubuntu20:
-  <<: *build-template
+  extends: .build-template
   image: $UBUNTU20_IMAGE
 
 build-ubuntu18:
-  <<: *build-template
+  extends: .build-template
   image: $UBUNTU18_IMAGE
 
 build-debian:
-  <<: *build-template
+  extends: .build-template
   image: $DEBIAN_IMAGE
 
 .test-template: &test-template
@@ -166,12 +166,12 @@ tests-lifter-eval:
       when: never # Currently disabled; this test causes the CI server to run out of memory
 
 tests-ubuntu18:
-  <<: *test-template
+  extends: .test-template
   needs: [build-ubuntu18]
   image: $UBUNTU18_IMAGE
 
 tests-debian:
-  <<: *test-template
+  extends: .test-template
   needs: [build-debian]
   image: $DEBIAN_IMAGE
 

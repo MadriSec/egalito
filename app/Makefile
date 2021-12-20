@@ -93,14 +93,10 @@ OUTPUTS = $(ETSHELL) $(ETSHELL2) $(ETOBJDUMP) $(ETSANDBOX) $(SANDBOX_LIBRARY) $(
 all: app-all .symlinks
 	@true
 
-app-all: $(OUTPUTS) | rebuild-src
+app-all: $(OUTPUTS)
 
 python: $(BUILDTREE) $(PYTHON_BINDING) $(PYSHELL)
 	@ln -sf $(PYSHELL)
-
-ifeq ($(findstring clean,$(MAKECMDGOALS)),)
-Makefile: rebuild-src
-endif
 
 $(ALL_OBJECTS): | $(BUILDTREE)
 $(BUILDTREE): ../config/config.h
@@ -127,8 +123,7 @@ $(BUILDTREE): ../config/config.h
 	@ln -sf $(ETORDER)
 	@ln -sf $(shell pwd)/../src/$(BUILDDIR)libegalito.so $(BUILDDIR)libegalito.so
 
-.PHONY: rebuild-src
-rebuild-src:
+../src/$(BUILDDIR)libegalito.so:
 	$(call short-make,../src)
 
 # Dependencies
