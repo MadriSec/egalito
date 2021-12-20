@@ -3,6 +3,7 @@
 #include <functional>
 #include <cstdio>
 #include <cstdlib>
+#include <experimental/filesystem>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -138,15 +139,14 @@ FullCommandList::FullCommandList(EgalitoInterface *egalito) {
         [this, egalito] (ShellState &state, ArgumentValueList &args) {
             //std::string output = tempnam("/tmp", "ega-");
             char pfnam[TPATH_MAX] = {};
-            char tfnam[TPATH_MAX] = {};
 
             char tmpl[] = "ega-XXXXXX";
             int fd = mkstemp(tmpl);
-            
+
             std::snprintf(pfnam, TPATH_MAX-1, "/proc/self/fd/%d", fd);
-            readlink(tfnam, pfnam, TPATH_MAX-1);
-            close(fd); 
-            std::string output = tfnam;
+            auto fs_path = std::experimental::filesystem::read_symlink(pfnam);
+            close(fd);
+            std::string output = fs_path.string();
 
             bool uniongen;
             if(args.getBool("-m")) uniongen = false;

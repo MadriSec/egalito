@@ -1,7 +1,6 @@
 #include <cassert>
 #include <cstring>
-#include <climits>  // for PATH_MAX
-#include <unistd.h>  // for readlink
+#include <experimental/filesystem>
 #include "config.h"
 #include "setup.h"
 #include "conductor.h"
@@ -32,11 +31,9 @@ void ConductorSetup::parseEgalito(bool fromArchive) {
 #ifdef EGALITO_PATH
     const char *path = EGALITO_PATH;
 #else
-    const char *name = "/libegalito.so";
-    char path[PATH_MAX];
-    auto sz = readlink("/proc/self/exe", path, PATH_MAX);
-    path[sz] = 0;
-    std::strcpy(std::strrchr(path, '/'), name);
+    auto fs_path = std::experimental::filesystem::read_symlink("/proc/self/exe");
+    fs_path = fs_path.parent_path() / "libegalito.so";
+    auto path = fs_path.c_str();
 #endif
     LOG(1, "egalito is at " << path);
 
