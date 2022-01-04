@@ -12,7 +12,6 @@ class GtirbSerializer {
 public:
     /** Output 'program' to gtirb IR */
     void serialize(Program *program, std::string filename);
-
 };
 
 #endif

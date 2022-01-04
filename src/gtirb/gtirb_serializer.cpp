@@ -44,12 +44,10 @@ struct ElfSymbolInfoAD {
 }
 
 /**
- * @brief Serialize chunk hierarchy to gtirb using visitor pattern 
+ * @brief Serialize chunk hierarchy to gtirb using visitor pattern
  */
 class ChunkSerializer : public ChunkVisitor {
 protected:
-
-    
     gtirb::Context &C;
     /// \brief The IR into which the binary is serialized
     gtirb::IR &ir;
@@ -79,7 +77,7 @@ protected:
      * Specifying child type explicitly not necessary,
      * only for readability.
      */
-    template <typename ChildT=Chunk*, typename ParentT>
+    template <typename ChildT = Chunk *, typename ParentT>
     void recurse(ParentT *parent) {
         chunk_depth += 1;
         for (ChildT child : CIter::children(parent)) {
@@ -91,8 +89,8 @@ protected:
     /**
      * @brief Log indented info to the chunklog
      */
-    template <typename ...Args>
-    void log_chunk(Args&&... args) {
+    template <typename... Args>
+    void log_chunk(Args &&... args) {
         if (!chunklog) {
             return;
         }
@@ -102,29 +100,29 @@ protected:
     }
 
 public:
-
     /**
      * @brief Construct new object to serialize egalito to gtirb
-     * 
+     *
      * @param C The egalito context with which structures are created
      * @param ir The intermediate represntation into which the data is placed
      * @param chunklog If provided, log the chunk hierarchy to this file
      */
-    ChunkSerializer(gtirb::Context &C, gtirb::IR &ir, std::ofstream *chunklog = nullptr)
-        : C(C), ir(ir), chunklog(chunklog) {};
-        
+    ChunkSerializer(
+        gtirb::Context &C, gtirb::IR &ir, std::ofstream *chunklog = nullptr)
+        : C(C), ir(ir), chunklog(chunklog){};
+
     /**
      * There is no context when using the visitor pattern
      * so there isn't a good way of determining, e.g.,
      * which `Module` a `Function` is in.
-     * 
+     *
      * These two data structures store that contextual information
      * for egalito and gtirb as decending the chunk hierarchy.
-     * 
+     *
      * There's probably a better structure to keep track of this information
      * (an actual stack, maybe?).
      */
-    struct EStack{
+    struct EStack {
         Program *program = nullptr;
         Library *library = nullptr;
         Module *module = nullptr;
@@ -133,7 +131,7 @@ public:
         DataRegion *region = nullptr;
     } eStack;
 
-    struct GStack{
+    struct GStack {
         gtirb::Module *module = nullptr;
         gtirb::ByteInterval *byteInterval = nullptr;
         gtirb::CodeBlock *codeBlock = nullptr;
@@ -152,10 +150,11 @@ public:
 
     } gStack;
 
-    std::vector<std::tuple<gtirb::ByteInterval*, unsigned long,  Link *, std::string>> links;
+    std::vector<
+        std::tuple<gtirb::ByteInterval *, unsigned long, Link *, std::string>>
+        links;
     std::unordered_map<DataSection *, gtirb::Section *> section_map;
     std::unordered_map<Chunk *, gtirb::Symbol *> symbol_map;
-
 
     virtual void visit(Program *program) {
         eStack.program = program;
@@ -214,32 +213,33 @@ public:
                 targetName = target->getName();
             }
             LOG(0, "Destination for link found from "
-                       << name << " "
-                       << std::hex << (uint64_t)(*src->getAddress())
-                       <<" offset " << std::dec << offset
-                       << " to " << std::hex << targetAddr << " (" << targetName << ")");
+                       << name << " " << std::hex
+                       << (uint64_t)(*src->getAddress()) << " offset "
+                       << std::dec << offset << " to " << std::hex << targetAddr
+                       << " (" << targetName << ")");
 
             const auto gSymbol_it = gModule->findSymbols(targetName);
 
             if (gSymbol_it.begin() == gSymbol_it.end()) {
-                 LOG(0, "eSymbol not mapped");
-                 continue;
+                LOG(0, "eSymbol not mapped");
+                continue;
             }
             gtirb::Symbol &gSymbol = *gSymbol_it.begin();
 
             // FIXME IMMEDIATELY:
             // I have not yet found where in egalito to find the byte offset
             // into an instruction at which a 'link' takes place.
-            // This buckshot approach adds a symbolic expression for all of the first
-            // four bytes in the expression.
-            // It happens to work with gtirb-pprinter for now, but is definitely bad.
+            // This buckshot approach adds a symbolic expression for all of the
+            // first four bytes in the expression. It happens to work with
+            // gtirb-pprinter for now, but is definitely bad.
             for (int i = 0; i < 4; i++) {
-                src->addSymbolicExpression<gtirb::SymAddrConst>(offset+i, 0, &gSymbol);
+                src->addSymbolicExpression<gtirb::SymAddrConst>(
+                    offset + i, 0, &gSymbol);
             }
 
-            LOG(0, "Added symbolic expression from " << name << " Offset " << std::dec << offset << " to "
-                                                     << gSymbol.getName());
-
+            LOG(0, "Added symbolic expression from "
+                       << name << " Offset " << std::dec << offset << " to "
+                       << gSymbol.getName());
         }
     }
 
@@ -262,11 +262,14 @@ public:
         log_chunk("- chunk: !section ", dataSection->getName());
         log_chunk("  Section addr: ", dataSection->getAddress());
         log_chunk("  Original offset: ", dataSection->getOriginalOffset());
-        log_chunk("  Range: ", dataSection->getRange().getStart(), " - ", dataSection->getRange().getEnd());
-        log_chunk("  Size: ", dataSection->getSize(), "/", dataSection->getRange().getSize());
-        
+        log_chunk("  Range: ", dataSection->getRange().getStart(), " - ",
+            dataSection->getRange().getEnd());
+        log_chunk("  Size: ", dataSection->getSize(), "/",
+            dataSection->getRange().getSize());
+
         // DataSections contains an entry for every section in the file
-        // I keep going back and forth on whether we should just use an elfMap for that
+        // I keep going back and forth on whether we should just use an elfMap
+        // for that
         auto *section = gtirb::Section::Create(C, dataSection->getName());
         gStack.module->addSection(section);
         gStack.section = section;
@@ -277,19 +280,20 @@ public:
         // TODO: I'm not sure if it makes sense to have this byte interval
         // It's only being used to store global variables
         // And will overlap with byteIntervals that functions are stored in.
-        auto *interval = gtirb::ByteInterval::Create(C, gtirb::Addr(addr), dataSection->getSize());
+        auto *interval = gtirb::ByteInterval::Create(
+            C, gtirb::Addr(addr), dataSection->getSize());
         gStack.byteInterval = interval;
         recurse<DataVariable *>(dataSection);
         recurse<GlobalVariable *>(dataSection->getGlobalVariables());
         gStack.byteInterval = nullptr;
     }
 
-
     virtual void visit(DataVariable *dataVariable) {
         /*
-        * From egalito docstring:
-        *  'Represents a variable within a global data section that points at another chunk'
-        */
+         * From egalito docstring:
+         *  'Represents a variable within a global data section that points at
+         * another chunk'
+         */
 
         log_chunk("- chunk: !dataVariable ", dataVariable->getName());
         log_chunk("  Variable addr: ", std::hex, dataVariable->getAddress());
@@ -300,7 +304,7 @@ public:
 
         log_chunk("  Section offset: ", section_offset);
         uint64_t symbolSize = 0;
-    
+
         // Store the link so we can make a symbolicReference here later
         if (Link *dest = dataVariable->getDest()) {
             // TODO: I'm not really sure if this use of byteInterval makes sense
@@ -308,15 +312,15 @@ public:
                 dest, dataVariable->getName()));
             if (!dest->getTarget()) {
                 log_chunk("  Dest name: UNKNOWN");
-            } else {
+            }
+            else {
                 symbolSize = dest->getTarget()->getSize();
                 log_chunk("  Dest name: ", dest->getTarget()->getName());
             }
         }
 
-        auto gSymbol = gtirb::Symbol::Create(
-            C, gtirb::Addr(dataVariable->getAddress()), dataVariable->getName()
-        );
+        auto gSymbol = gtirb::Symbol::Create(C,
+            gtirb::Addr(dataVariable->getAddress()), dataVariable->getName());
         gStack.module->addSymbol(gSymbol);
 
         Symbol *target = dataVariable->getTargetSymbol();
@@ -381,31 +385,31 @@ public:
                 break;
         }
         log_chunk("  binding: ", binding);
-        ElfSymbolInfo Info{symbolSize, symType, binding, "DEFAULT", target->getSectionIndex()};
+        ElfSymbolInfo Info{
+            symbolSize, symType, binding, "DEFAULT", target->getSectionIndex()};
         gStack.symbolInfo[gSymbol->getUUID()] = Info;
-
     }
 
     virtual void visit(GlobalVariable *globalVariable) {
         /**
-         * "Represents a variable that has a symbol of some sort that needs to be preserved"
-        */
+         * "Represents a variable that has a symbol of some sort that needs to
+         * be preserved"
+         */
         // TODO: Most of this is copied verbatim from dataVariable
         // They could probably be combined
-    
+
         log_chunk("- chunk: !global ", globalVariable->getName());
         log_chunk("  Addr: ", globalVariable->getAddress());
         log_chunk("  size: ", globalVariable->getSize());
-
 
         if (globalVariable->getSize()) {
             // This part is different from dataVariable,
             // in that it stores the actual bytes
             auto addr = globalVariable->getAddress();
-            auto *interval = gtirb::ByteInterval::Create(C, gtirb::Addr(addr), globalVariable->getSize());
+            auto *interval = gtirb::ByteInterval::Create(
+                C, gtirb::Addr(addr), globalVariable->getSize());
 
-            auto intervalBegin = std::as_const(*interval)
-                                    .bytes_begin<char>();
+            auto intervalBegin = std::as_const(*interval).bytes_begin<char>();
 
             const std::string &region_bytes = eStack.region->getDataBytes();
             uint64_t section_offset = globalVariable->getAddress() -
@@ -425,9 +429,9 @@ public:
             gStack.section->addByteInterval(interval);
         }
         Symbol *target = globalVariable->getSymbol();
-        auto gSymbol = gtirb::Symbol::Create(
-            C, gtirb::Addr(globalVariable->getAddress()), globalVariable->getName()
-        );
+        auto gSymbol = gtirb::Symbol::Create(C,
+            gtirb::Addr(globalVariable->getAddress()),
+            globalVariable->getName());
         gStack.module->addSymbol(gSymbol);
 
         if (!target) {
@@ -480,9 +484,9 @@ public:
                 break;
         }
         log_chunk("  binding: ", binding);
-        ElfSymbolInfo Info{globalVariable->getSize(), symType, binding, "DEFAULT", target->getSectionIndex()};
+        ElfSymbolInfo Info{globalVariable->getSize(), symType, binding,
+            "DEFAULT", target->getSectionIndex()};
         gStack.symbolInfo[gSymbol->getUUID()] = Info;
-
     }
 
     DataSection *getEgalitoSection(Function *function) {
@@ -529,15 +533,15 @@ public:
         eStack.function = nullptr;
 
         auto gSymbol = gtirb::Symbol::Create(
-            C, gtirb::Addr(addr), eSymbol->getName()
-        );
+            C, gtirb::Addr(addr), eSymbol->getName());
         symbol_map[function] = gSymbol;
         gStack.module->addSymbol(gSymbol);
 
         gtirb::UUID funcId = generate_uuid();
         gStack.moduleFunctionNames[funcId] = gSymbol->getUUID();
         gStack.moduleFunctionBlocks[funcId] = std::move(gStack.functionBlocks);
-        gStack.moduleFunctionEntries[funcId] = std::move(gStack.functionEntries);
+        gStack.moduleFunctionEntries[funcId] = std::move(
+            gStack.functionEntries);
 
         // TODO: Same method of gathering symobl info as dataVariable
         std::string binding = "";
@@ -552,12 +556,14 @@ public:
                 binding = "WEAK";
                 break;
         }
-        ElfSymbolInfo Info = {function->getSize(), "FUNC", binding, "DEFAULT", eSymbol->getSectionIndex()};
+        ElfSymbolInfo Info = {function->getSize(), "FUNC", binding, "DEFAULT",
+            eSymbol->getSectionIndex()};
         gStack.symbolInfo[gSymbol->getUUID()] = Info;
     }
 
     virtual void visit(Block *block) {
-        log_chunk("- Block addr/pos: ", block->getAddress(), "/", block->getPosition()->get());
+        log_chunk("- Block addr/pos: ", block->getAddress(), "/",
+            block->getPosition()->get());
         auto funcAddr = eStack.function->getPosition()->get();
         auto blockOffset = block->getPosition()->get() - funcAddr;
 
@@ -570,7 +576,7 @@ public:
         gStack.byteInterval->addBlock(blockOffset, codeBlock);
 
         gStack.codeBlock = codeBlock;
-        recurse<Instruction*>(block);
+        recurse<Instruction *>(block);
         gStack.codeBlock = nullptr;
     }
 
@@ -595,8 +601,10 @@ public:
             if (link->getTarget()) {
                 std::string target = link->getTarget()->getName();
                 log_chunk("- Link: ", target);
-                log_chunk("  Target Addr: 0x", std::hex, link->getTargetAddress());
-                log_chunk("  Target.addr: 0x", std::hex, link->getTarget()->getAddress());
+                log_chunk(
+                    "  Target Addr: 0x", std::hex, link->getTargetAddress());
+                log_chunk("  Target.addr: 0x", std::hex,
+                    link->getTarget()->getAddress());
                 log_chunk("  Scope: ", link->getScope());
                 links.push_back(std::make_tuple(gStack.byteInterval,
                     instrOffset, link, eStack.function->getName()));
@@ -639,10 +647,11 @@ public:
         eStack.region = dataRegion;
         log_chunk("- chunk: !region ", dataRegion->getName());
         log_chunk("  Addr: ", dataRegion->getAddress());
-        log_chunk("  Range: ", dataRegion->getRange().getStart(), " - ", dataRegion->getRange().getEnd());
-        //log_stackdepth += 1;
+        log_chunk("  Range: ", dataRegion->getRange().getStart(), " - ",
+            dataRegion->getRange().getEnd());
+        // log_stackdepth += 1;
         recurse(dataRegion);
-        //log_stackdepth -= 1;
+        // log_stackdepth -= 1;
     }
 
     /** Chunks which are currently ignored altogether */
@@ -659,8 +668,6 @@ public:
     virtual void visit(VTable *vtable) {}
     virtual void visit(VTableEntry *vtableEntry) {}
 };
-
-
 
 class GtirbConverter {
 private:
@@ -705,6 +712,3 @@ void GtirbSerializer::serialize(Program *program, std::string filename) {
     ir->saveJSON(file2);
     file2.close();
 }
-
-
-
