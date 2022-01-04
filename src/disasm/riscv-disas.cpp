@@ -2143,16 +2143,16 @@ static void format_inst(char *buf, size_t buflen, size_t tab, rv_decode *dec)
     size_t len = rv_inst_length(dec->inst);
     switch (len) {
     case 2:
-        snprintf(buf, buflen, INST_FMT_2, dec->inst);
+        snprintf(buf, buflen, INST_FMT_2, dec->inst); /* Flawfinder: ignore */
         break;
     case 4:
-        snprintf(buf, buflen, INST_FMT_4, dec->inst);
+        snprintf(buf, buflen, INST_FMT_4, dec->inst); /* Flawfinder: ignore */
         break;
     case 6:
-        snprintf(buf, buflen, INST_FMT_6, dec->inst);
+        snprintf(buf, buflen, INST_FMT_6, dec->inst); /* Flawfinder: ignore */
         break;
     default:
-        snprintf(buf, buflen, INST_FMT_8, dec->inst);
+        snprintf(buf, buflen, INST_FMT_8, dec->inst); /* Flawfinder: ignore */
         break;
     }
 
@@ -2206,7 +2206,7 @@ static void format_inst(char *buf, size_t buflen, size_t tab, rv_decode *dec)
             while (strlen(buf) < tab * 2) {
                 append(buf, " ", buflen);
             }
-            snprintf(tmp, sizeof(tmp), "# 0x%" PRIx64,
+            snprintf(tmp, sizeof(tmp), "# 0x%" PRIx64, /* Flawfinder: ignore */
                 dec->pc + dec->imm);
             append(buf, tmp, buflen);
             break;
@@ -2302,7 +2302,7 @@ static void extract_inst(rv_instr *instr, rv_decode *dec)
     instr->op = (rv_op)dec->op;
     instr->codec = dec->codec;
     instr->ip = dec->pc;
-    
+
     fmt = opcode_data[dec->op].format;
     while (*fmt) {
         switch (*fmt) {
@@ -2350,7 +2350,7 @@ static void extract_inst(rv_instr *instr, rv_decode *dec)
             break;
         case '6':
             instr->oper[instr->oper_count].type = rv_oper::rv_oper_reg;
-            instr->oper[instr->oper_count].value.reg = 
+            instr->oper[instr->oper_count].value.reg =
                 (rv_reg)(dec->rs3 + rv_freg_base);
             instr->oper_count ++;
             break;
