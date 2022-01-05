@@ -2302,7 +2302,7 @@ static void extract_inst(rv_instr *instr, rv_decode *dec)
     instr->op = (rv_op)dec->op;
     instr->codec = dec->codec;
     instr->ip = dec->pc;
-
+    
     fmt = opcode_data[dec->op].format;
     while (*fmt) {
         switch (*fmt) {
@@ -2350,7 +2350,7 @@ static void extract_inst(rv_instr *instr, rv_decode *dec)
             break;
         case '6':
             instr->oper[instr->oper_count].type = rv_oper::rv_oper_reg;
-            instr->oper[instr->oper_count].value.reg =
+            instr->oper[instr->oper_count].value.reg = 
                 (rv_reg)(dec->rs3 + rv_freg_base);
             instr->oper_count ++;
             break;

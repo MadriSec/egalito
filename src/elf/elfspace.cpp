@@ -22,6 +22,8 @@
 
 #include "config.h"
 
+namespace fs = std::experimental::filesystem;
+
 ElfSpace::ElfSpace(ElfMap *elf, const std::string &name,
     const std::string &fullPath) : elf(elf), dwarf(nullptr),
     name(name), fullPath(fullPath), module(nullptr),
@@ -84,7 +86,7 @@ std::string ElfSpace::getAlternativeSymbolFile() const {
                 }
                 symbolFile << ".debug";
 
-                if(std::experimental::filesystem::exists(symbolFile.str())) return symbolFile.str();
+                if(fs::exists(symbolFile.str())) return symbolFile.str();
             }
 
             size_t align = ~((1 << buildIdHeader->sh_addralign) - 1);
@@ -110,7 +112,7 @@ std::string ElfSpace::getAlternativeSymbolFile() const {
         }
 
         free(realPath);
-        if(std::experimental::filesystem::exists(symbolFile.str())) return symbolFile.str();
+        if(fs::exists(symbolFile.str())) return symbolFile.str();
 
     }
 
@@ -120,7 +122,7 @@ std::string ElfSpace::getAlternativeSymbolFile() const {
 std::string ElfSpace::getAlternativeSymbolFileMultiArch() const {
     // Get alternative search paths from multiarch support config
     const std::string march_filename = "/etc/ld.so.conf.d/x86_64-linux-gnu.conf";
-    if(std::experimental::filesystem::exists(march_filename)) {
+    if(!fs::exists(march_filename)) {
         return "";
     }
 
@@ -139,7 +141,7 @@ std::string ElfSpace::getAlternativeSymbolFileMultiArch() const {
         line = line.substr(0, comment_start);
 
         std::string tstSymbolFile = "/usr/lib/debug" + line + "/" + symbol_name;
-        if(std::experimental::filesystem::exists(tstSymbolFile)) {
+        if(fs::exists(tstSymbolFile)) {
             symbolFile = tstSymbolFile;
             break;
         }
