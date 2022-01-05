@@ -1,0 +1,39 @@
+execute_process(
+    COMMAND "make -f relocate.mk"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+)
+
+set(EGALITO_BUILD_DIR ${CMAKE_CURRENT_LIST_DIR}/build)
+set(EGALITO_BINARY_DIR ${EGALITO_BUILD_DIR}/bin)
+set(EGALITO_LIBRARY_DIR ${EGALITO_BUILD_DIR}/lib)
+set(EGALITO_STATIC_DIR ${EGALITO_BUILD_DIR}/static)
+set(EGALITO_HEADER_DIR ${EGALITO_BUILD_DIR}/include)
+
+if(CPACK_EGALITO_PACKAGE STREQUAL  "lib")
+  #debian
+  set(CPACK_INSTALLED_DIRECTORIES ${EGALITO_LIBRARY_DIR} "usr/lib" "${EGALITO_DEP_DIR}/libegalito.so" "usr/lib")
+  set(CPACK_PACKAGE_NAME "libegalito")
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS 
+    "libc6")
+  # todo: package these separately, version them so
+  # we can specify dependencies correctly.
+  # Until then:
+  set(CPACK_DEBIAN_PACKAGE_CONFLICTS "libcapstone3, libdistorm3-3")
+  #rpm: todo
+elseif(CPACK_EGALITO_PACKAGE STREQUAL "bin") 
+  set(CPACK_INSTALLED_DIRECTORIES ${EGALITO_BINARY_DIR} "usr/bin")
+  set(CPACK_PACKAGE_NAME "egalito")
+  #debian
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "libegalito")
+  #rpm: todo
+elseif(CPACK_EGALITO_PACKAGE STREQUAL "static")
+  set(CPACK_INSTALLED_DIRECTORIES ${EGALITO_STATIC_DIR} "usr/lib")
+  set(CPACK_PACKAGE_NAME "libegalito-static")
+else()
+  message("Please set CPACK_EGALITO_PACKAGE to: 'lib', 'bin', or 'static'")
+  return()
+endif()
+
+set(CPACK_DEBIAN_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
+set(CPACK_RPM_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
+set(CPACK_PACKAGE_FILE_NAME ${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION})

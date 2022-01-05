@@ -24,6 +24,8 @@ stages:
   - build
   - test
   - sast
+  - package
+  - test-package
 
 .reset_timestamps: &RESET_TIMESTAMPS
   - echo -e "\e[0Ksection_start:`date +%s`:set_timestamps[collapsed=true]\r\e[0KSetting modification timestamps"
@@ -175,6 +177,31 @@ tests-debian:
   needs: [build-debian]
   image: $DEBIAN_IMAGE
 
+package-ubuntu18:
+  image: $UBUNTU18_IMAGE
+  needs: [build-ubuntu18]
+  stage: package
+  artifacts:
+    paths:
+      - '*.deb'
+  script:
+    - apt update && apt install -y cmake
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static
+    
+test-package-ubuntu18:
+  stage: test-package
+  image: $UBUNTU18_IMAGE
+  needs: [package-ubuntu18]
+  script: 
+    - for file in libegalito*.deb; do apt-get install -y ./${file}; done
+    - for file in egalito*.deb; do apt-get install -y ./${file}; done  
+    - git clean -fdx || true
+    - cd test/example && make -j && cd -
+    - etelf -m test/example/hellocpp hello
+    - ./hello
+  
 sast:
   stage: sast
   needs: []
