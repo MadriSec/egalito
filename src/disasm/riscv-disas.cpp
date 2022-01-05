@@ -2143,16 +2143,16 @@ static void format_inst(char *buf, size_t buflen, size_t tab, rv_decode *dec)
     size_t len = rv_inst_length(dec->inst);
     switch (len) {
     case 2:
-        snprintf(buf, buflen, INST_FMT_2, dec->inst); /* Flawfinder: ignore */
+        snprintf(buf, buflen, INST_FMT_2, dec->inst);
         break;
     case 4:
-        snprintf(buf, buflen, INST_FMT_4, dec->inst); /* Flawfinder: ignore */
+        snprintf(buf, buflen, INST_FMT_4, dec->inst);
         break;
     case 6:
-        snprintf(buf, buflen, INST_FMT_6, dec->inst); /* Flawfinder: ignore */
+        snprintf(buf, buflen, INST_FMT_6, dec->inst);
         break;
     default:
-        snprintf(buf, buflen, INST_FMT_8, dec->inst); /* Flawfinder: ignore */
+        snprintf(buf, buflen, INST_FMT_8, dec->inst);
         break;
     }
 
@@ -2206,7 +2206,7 @@ static void format_inst(char *buf, size_t buflen, size_t tab, rv_decode *dec)
             while (strlen(buf) < tab * 2) {
                 append(buf, " ", buflen);
             }
-            snprintf(tmp, sizeof(tmp), "# 0x%" PRIx64, /* Flawfinder: ignore */
+            snprintf(tmp, sizeof(tmp), "# 0x%" PRIx64,
                 dec->pc + dec->imm);
             append(buf, tmp, buflen);
             break;

@@ -58,7 +58,7 @@ void DisasmDump::printInstructionRaw(unsigned long address, int offset,
 }
 
 #define APPEND(...) \
-    pos += std::snprintf(buffer + pos, sizeof buffer - pos, __VA_ARGS__) /* Flawfinder: ignore */
+    pos += std::snprintf(buffer + pos, sizeof buffer - pos, __VA_ARGS__)
 void DisasmDump::printInstructionRaw(unsigned long address, int offset,
     const char *opcode, const char *args, const char *name,
     const std::string &rawDisasm, bool calculatedStyle) {
