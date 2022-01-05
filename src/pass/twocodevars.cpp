@@ -135,8 +135,7 @@ void TwocodeVarsPass::addVariable(DataSection *section, Chunk *target,
         if(auto function = dynamic_cast<Function *>(target)) {
             const size_t nameSize = function->getName().length() + std::strlen(suffix) + 1;
             char *name = new char[nameSize];
-            std::strncpy(name, function->getName().c_str(), nameSize);
-            std::strncat(name, suffix, nameSize - function->getName().size());
+            std::snprintf(name, nameSize, "%s%s", function->getName(), suffix);
 
             nsymbol = new Symbol(
                 function->getAddress(), VAR_SIZE, name,

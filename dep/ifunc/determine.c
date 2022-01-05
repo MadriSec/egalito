@@ -62,7 +62,7 @@ int main(int argc, char **argv)
     buf[1] = 1;
     buf2[0] = 0;
     buf2[1] = 2;
-    strncpy(buf, buf2, sizeof(buf));
+    strcpy(buf, buf2);
     strncpy(buf, buf2, 0);
     stpcpy(buf, buf2);
     stpncpy(buf, buf2, 0);
@@ -90,7 +90,7 @@ int main(int argc, char **argv)
             nop();
         }
     }
-    if(strncat(buf2, buf, sizeof(buf2) - strlen(buf2))) {
+    if(strcat(buf2, buf)) {
         nop();
     }
 
