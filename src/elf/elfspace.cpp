@@ -1,7 +1,6 @@
 #include <stdlib.h>  // for realpath() [ARM]
 #include <libgen.h>  // for dirname() [ARM]
 #include <limits.h>  // for PATH_MAX [ARM]
-#include <experimental/filesystem> // for exists()
 #include <string.h>  // for strdup()
 #include <iomanip>
 #include <sstream>
@@ -21,8 +20,6 @@
 #include "log/log.h"
 
 #include "config.h"
-
-namespace fs = std::experimental::filesystem;
 
 ElfSpace::ElfSpace(ElfMap *elf, const std::string &name,
     const std::string &fullPath) : elf(elf), dwarf(nullptr),
@@ -44,10 +41,10 @@ ElfSpace::~ElfSpace() {
 
 void ElfSpace::findSymbolsAndRelocs() {
     if(fullPath.size() > 0) {
-        auto symbolFile = getAlternativeSymbolFile();
-        this->symbolList = SymbolList::buildSymbolList(elf, symbolFile);
+        useAlternativeSymbolFile();
     }
-    else {
+
+    if (!symbolList) {
         this->symbolList = SymbolList::buildSymbolList(elf);
     }
 
@@ -64,7 +61,7 @@ void ElfSpace::findSymbolsAndRelocs() {
         = RelocList::buildRelocList(elf, symbolList, dynamicSymbolList);
 }
 
-std::string ElfSpace::getAlternativeSymbolFile() const {
+void ElfSpace::useAlternativeSymbolFile() {
     auto buildIdSection = elf->findSection(".note.gnu.build-id");
     if(buildIdSection) {
         auto buildIdHeader = buildIdSection->getHeader();
@@ -86,7 +83,7 @@ std::string ElfSpace::getAlternativeSymbolFile() const {
                 }
                 symbolFile << ".debug";
 
-                if(fs::exists(symbolFile.str())) return symbolFile.str();
+                if(tryAlternativeSymbolFile(symbolFile.str())) return;
             }
 
             size_t align = ~((1 << buildIdHeader->sh_addralign) - 1);
@@ -112,42 +109,48 @@ std::string ElfSpace::getAlternativeSymbolFile() const {
         }
 
         free(realPath);
-        if(fs::exists(symbolFile.str())) return symbolFile.str();
+        if(tryAlternativeSymbolFile(symbolFile.str())) return;
 
     }
 
-    return getAlternativeSymbolFileMultiArch();
+    useAlternativeSymbolFileGT();
 }
 
-std::string ElfSpace::getAlternativeSymbolFileMultiArch() const {
-    // Get alternative search paths from multiarch support config
-    const std::string march_filename = "/etc/ld.so.conf.d/x86_64-linux-gnu.conf";
-    if(!fs::exists(march_filename)) {
-        return "";
-    }
-
+void ElfSpace::useAlternativeSymbolFileGT() {
     auto debuglink = elf->findSection(".gnu_debuglink");
     if(!debuglink) {
-        return "";
+        return;
     }
     auto symbol_name = elf->getSectionReadPtr<char *>(debuglink);
 
-    std::ifstream march_file(march_filename);
+    std::ifstream march_file("/etc/ld.so.conf.d/x86_64-linux-gnu.conf");
+    if (!march_file.good()) {
+        march_file.close();
+        return;
+    }
     std::string line;
-    std::string symbolFile = "";
     while(std::getline(march_file, line)) {
         // Ignore comments
         auto comment_start = line.find("#");
         line = line.substr(0, comment_start);
 
         std::string tstSymbolFile = "/usr/lib/debug" + line + "/" + symbol_name;
-        if(fs::exists(tstSymbolFile)) {
-            symbolFile = tstSymbolFile;
+        if(tryAlternativeSymbolFile(tstSymbolFile)) {
             break;
         }
     }
 
     march_file.close();
+}
 
-    return symbolFile;
+bool ElfSpace::tryAlternativeSymbolFile(std::string symbolFile) {
+    try {
+        ElfMap *symbolElf = new ElfMap(symbolFile.c_str());
+        this->symbolList = SymbolList::buildSymbolList(symbolElf);
+        return true;
+    }
+    catch (...) {
+        this->symbolList = nullptr;
+        return false;
+    }
 }
