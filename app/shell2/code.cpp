@@ -279,7 +279,8 @@ bool FullCommandList::runCommandN(const char *file, ShellState &state,
         }
         std::cout << std::endl;
 #endif
-        execvp(argv[0], argv);
+        // Unsafe according to CWE-78; but this is required to execute shell commands
+        execvp(argv[0], argv); /* Flawfinder: ignore */
         std::exit(1);
     }
     else {
@@ -341,7 +342,8 @@ bool FullCommandList::runGeneratedFile(const char *file, ShellState &state,
         }
         std::cout << std::endl;
 #endif
-        execvp(argv[0], argv);
+        // Unsafe according to CWE-78; but this is required to execute shell commands
+        execvp(argv[0], argv); /* Flawfinder: ignore */
         std::exit(1);
     }
     else {

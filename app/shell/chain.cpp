@@ -42,7 +42,8 @@ void executeLoader(ConductorSetup *setup, Arguments args) {
         LOG(1, "    \"" << argv[i] << "\"");
     }
 
-    execv(argv[0], argv);
+    // Unsafe according to CWE-78; but this is required to execute shell commands
+    execv(argv[0], argv); /* Flawfinder: ignore */
     LOG(0, "exec failed: " << strerror(errno));
 
     for(size_t i = 2; i < count; i ++) delete argv[i];

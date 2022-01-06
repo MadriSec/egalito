@@ -58,7 +58,8 @@ void DisasmDump::printInstructionRaw(unsigned long address, int offset,
 }
 
 #define APPEND(...) \
-    pos += std::snprintf(buffer + pos, sizeof buffer - pos, __VA_ARGS__)
+    /* All instances of APPEND use constants for their format specification; CWE-134 does not apply */\
+    pos += std::snprintf(buffer + pos, sizeof buffer - pos, __VA_ARGS__) /* Flawfinder: ignore */
 void DisasmDump::printInstructionRaw(unsigned long address, int offset,
     const char *opcode, const char *args, const char *name,
     const std::string &rawDisasm, bool calculatedStyle) {
