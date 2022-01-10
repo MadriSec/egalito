@@ -6,7 +6,6 @@
 #include <iomanip>
 #include <sstream>
 #include <elf.h>
-#include <fstream>
 #include "elfspace.h"
 #include "elfmap.h"
 #include "sharedlib.h"
@@ -114,38 +113,5 @@ std::string ElfSpace::getAlternativeSymbolFile() const {
 
     }
 
-    return getAlternativeSymbolFileGT();
-}
-
-std::string ElfSpace::getAlternativeSymbolFileGT() const {
-    // Get alternative search paths from multiarch support config
-    const std::string march_filename = "/etc/ld.so.conf.d/x86_64-linux-gnu.conf";
-    if(access(march_filename.c_str(), F_OK) != 0) {
-        return "";
-    }
-
-    auto debuglink = elf->findSection(".gnu_debuglink");
-    if(!debuglink) {
-        return "";
-    }
-    auto symbol_name = elf->getSectionReadPtr<char *>(debuglink);
-
-    std::ifstream march_file(march_filename);
-    std::string line;
-    std::string symbolFile = "";
-    while(std::getline(march_file, line)) {
-        // Ignore comments
-        auto comment_start = line.find("#");
-        line = line.substr(0, comment_start);
-
-        std::string tstSymbolFile = "/usr/lib/debug" + line + "/" + symbol_name;
-        if(access(tstSymbolFile.c_str(), F_OK) == 0) {
-            symbolFile = tstSymbolFile;
-            break;
-        }
-    }
-
-    march_file.close();
-
-    return symbolFile;
+    return "";
 }
