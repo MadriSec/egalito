@@ -59,7 +59,7 @@ check-format:
       ================================================================================
       EOF
 
-coverage:
+coverage: 
   stage: build
   needs: []
   artifacts:
@@ -77,7 +77,7 @@ coverage:
     - *RESET_TIMESTAMPS
     - cd dep && make all && cd -
     - cd src && ENABLE_COVERAGE=1 make || ENABLE_COVERAGE=1 make -j 8 && cd -
-    - make all -j 8
+    - make all -j 8 
     - lcov -c -i -d src/build_x86_64 -o base.info
     - cd test/script && make test ||  true && cd -
     - cd test/codegen && make test || true && cd -
@@ -86,7 +86,7 @@ coverage:
     - lcov -a base.info -a test.info -o total.info
     - lcov --remove total.info "/usr/*" -o egalito.info
     - mkdir coverage
-    - genhtml -o coverage egalito.info
+    - genhtml -o coverage egalito.info 
 
 
 .build-template:
@@ -135,37 +135,6 @@ build-debian:
     - cd test/codegen && make test && cd -
 #    - cd test/unit && ./runner && cd -
 #    - cd test/script && make test && cd -
-
-tests-lifter-eval:
-  variables:
-    GIT_STRATEGY: none
-    LIFTER_EVAL_DIR: $CI_PROJECT_DIR/test/lifter-eval
-  stage: test
-  before_script:
-    # Make sure git lfs is installed
-    - apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y curl
-    - curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
-    - apt-get install git-lfs
-    - git lfs install
-  script:
-    - git clone --no-checkout -j8 https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/METIS/lifter-eval.git $LIFTER_EVAL_DIR
-    - cd $LIFTER_EVAL_DIR
-    - git lfs fetch
-    - git lfs checkout main -- results.tar.xz
-    - git checkout main subjects
-    - git submodule init && git submodule update --recursive
-    - cd $CI_PROJECT_DIR
-    - ./test/script/lifter-eval.sh
-  needs: [build-ubuntu20]
-  image: $UBUNTU20_IMAGE
-  cache:
-    key: "$CI_COMMIT_REF_SLUG-build-ubuntu20"
-    paths:
-      - test/lifter-eval/*/*.*
-  rules:
-    # Only run for scheduled pipelines
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: never # Currently disabled; this test causes the CI server to run out of memory
 
 tests-ubuntu18:
   extends: .test-template

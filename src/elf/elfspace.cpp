@@ -114,10 +114,10 @@ std::string ElfSpace::getAlternativeSymbolFile() const {
 
     }
 
-    return getAlternativeSymbolFileGT();
+    return getAlternativeSymbolFileMultiArch();
 }
 
-std::string ElfSpace::getAlternativeSymbolFileGT() const {
+std::string ElfSpace::getAlternativeSymbolFileMultiArch() const {
     // Get alternative search paths from multiarch support config
     const std::string march_filename = "/etc/ld.so.conf.d/x86_64-linux-gnu.conf";
     if(access(march_filename.c_str(), F_OK) != 0) {
