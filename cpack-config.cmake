@@ -15,10 +15,7 @@ if(CPACK_EGALITO_PACKAGE STREQUAL  "lib")
   set(CPACK_PACKAGE_NAME "libegalito")
   set(CPACK_DEBIAN_PACKAGE_DEPENDS 
     "libc6")
-  # todo: package these separately, version them so
-  # we can specify dependencies correctly.
-  # Until then:
-  set(CPACK_DEBIAN_PACKAGE_CONFLICTS "libcapstone3, libdistorm3-3")
+  set(CPACK_DEBIAN_PACKAGE_CONFLICTS "libcapstone-dev")
   #rpm: todo
 elseif(CPACK_EGALITO_PACKAGE STREQUAL "bin") 
   set(CPACK_INSTALLED_DIRECTORIES ${EGALITO_BINARY_DIR} "usr/bin")
