@@ -8,6 +8,7 @@
 #include "pass/ifuncplts.h"
 #include "log/registry.h"
 #include "log/log.h"
+#include "gtirb/gtirb_deserializer.h"
 
 EgalitoInterface::EgalitoInterface(bool verboseLogging, bool useLoggingEnvVar) {
     if(!verboseLogging) muteOutput();
@@ -46,6 +47,18 @@ Module *EgalitoInterface::parse(const std::string &filename, Library::Role role,
 void EgalitoInterface::parseRecursiveDependencies() {
     setup.getConductor()->parseLibraries();
     setup.addExtraLibraries(std::vector<std::string>{});  // force resolve* functions
+}
+
+bool EgalitoInterface::importGtirb(const std::string &filename) {
+    // Try to load the file as if it were GTIRB.
+    GtirbDeserializer gtirb_ds(filename);
+    if (gtirb_ds.preParse())
+    {
+        LOG(1, "parseing gtirb [" << filename << "]");
+        setup.parseGtirb(gtirb_ds);
+        return true;
+    }
+    return false;
 }
 
 void EgalitoInterface::prepareForGeneration(bool isUnion) {

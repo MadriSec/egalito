@@ -71,8 +71,6 @@ ifeq ($(USE_KEYSTONE),1)
 KEYSTONE_DIR = $(EGALITO_ROOT_DIR)/dep/keystone
 GENERIC_FLAGS += -I $(KEYSTONE_DIR)/include
 endif
-GTIRB_DIR = $(EGALITO_ROOT_DIR)/dep/gtirb/build
-GENERIC_FLAGS += -I $(GTIRB_DIR)/include
 ifeq ($(USE_LOADER),1)
 GENERIC_FLAGS += -DUSE_LOADER
 endif

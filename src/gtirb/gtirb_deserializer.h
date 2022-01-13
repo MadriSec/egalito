@@ -2,14 +2,18 @@
 #ifndef GTIRB_DESERIALIZER_H
 #define GTIRB_DESERIALIZER_H
 
+#include <capstone/capstone.h>
+#include <gtirb/gtirb.hpp>
 #include <string>
 #include <memory>
 
+class DataRegionList;
+class DisasmHandle;
+class Function;
+class InitFunctionList;
+class PLTList;
 class Program;
-namespace gtirb {
-    class Context;
-    class IR;
-}
+class SymbolList;
 
 /** Highest-level gtirb deserialization for a given gtirb file.
 */
@@ -28,9 +32,17 @@ public:
     std::string getFilename() { return this->filename; }
 
 private:
+    SymbolList *buildSymbolList(gtirb::Module& module);
+    Function *buildFunction(gtirb::UUID sym_uuid, const std::set<gtirb::UUID> &entries, const std::set<gtirb::UUID> &blocks);
+    InitFunctionList *buildInitFunctionList();
+    InitFunctionList *buildFiniFunctionList();
+    DataRegionList *buildDataRegionList();
+    PLTList *buildPLTList();
+
     std::string filename;
     std::unique_ptr<gtirb::Context> C;
     gtirb::IR *ir;
+    DisasmHandle *cs_handle;
 };
 
 #endif

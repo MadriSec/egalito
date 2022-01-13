@@ -5,8 +5,8 @@ include ../env.mk
 # 'next' as of 11/13/17 returns wrong imm for backward TBZ/TBNZ
 capstone-VERSION=$(if $(filter aarch64,$(P_ARCH)),3.0.4,egalito)
 
-.PHONY: all rtld ifunc capstone keystone distorm3 gtirb clean realclean
-all: rtld ifunc capstone keystone distorm3 gtirb
+.PHONY: all rtld ifunc capstone keystone distorm3 clean realclean
+all: rtld ifunc capstone keystone distorm3
 	-@touch built
 clean:
 	-$(call short-make,rtld,clean)
