@@ -20,6 +20,8 @@ void GtirbApp::parse(const std::string &filename, bool include_dependencies) {
             std::cout << "Parsing ELF file and all shared library dependencies...\n";
         }
         egalito->parse(filename, include_dependencies);
+        // egalito->prepareForGeneration(include_dependencies);
+        // egalito->generate(".tmp");
     }
     catch(const char *message) {
         std::cout << "Exception: " << message << std::endl;

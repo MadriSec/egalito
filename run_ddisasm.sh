@@ -33,7 +33,6 @@ if [[ "$VARIANT" != "" ]]; then
     fi
 fi
 
-set -x
 mkdir -p $BIN_OUTPUT/ddisasm
 
 reassemble() {
@@ -51,6 +50,10 @@ reassemble() {
     fi
 }
 
-ddisasm  $BIN_OUTPUT/$LABEL --ir $BIN_OUTPUT/ddisasm/$LABEL.gtirb --json $BIN_OUTPUT/ddisasm/$LABEL.json --asm $BIN_OUTPUT/ddisasm/$LABEL.s
+# Color all stderr output that doesn't start with '+'
+# (so '-x' outputs doesn't look like it's warnings)
+exec 2> >(sed $'s|\(^[^\+].*\)|\e\[31m\\1\e[m|g' 2>&1 )
+set -x
+ddisasm --no-cfi-directives  $BIN_OUTPUT/$LABEL --ir $BIN_OUTPUT/ddisasm/$LABEL.gtirb --json $BIN_OUTPUT/ddisasm/$LABEL.json --asm $BIN_OUTPUT/ddisasm/$LABEL.s
 
 reassemble $BIN_OUTPUT/ddisasm/$LABEL
