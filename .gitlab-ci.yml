@@ -136,15 +136,6 @@ build-debian:
 #    - cd test/unit && ./runner && cd -
 #    - cd test/script && make test && cd -
 
-quick-objdump-test:
-  extends: .test-template
-  needs: [build-ubuntu18]
-  image: $UBUNTU18_IMAGE
-  script:
-    - app/etelf src/ex/hello hello-etelf
-    - objdump -S hello-etelf
-
-
 tests-ubuntu18:
   extends: .test-template
   needs: [build-ubuntu18]
