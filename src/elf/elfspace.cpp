@@ -24,7 +24,7 @@
 ElfSpace::ElfSpace(ElfMap *elf, const std::string &name,
     const std::string &fullPath) : elf(elf), dwarf(nullptr),
     name(name), fullPath(fullPath), module(nullptr),
-    symbolList(nullptr), dynamicSymbolList(nullptr),
+    symbolElf(nullptr), symbolList(nullptr), dynamicSymbolList(nullptr),
     relocList(nullptr), aliasMap(nullptr) {
 
 }
@@ -34,6 +34,7 @@ ElfSpace::~ElfSpace() {
     delete dwarf;
     delete module;
     delete symbolList;
+    delete symbolElf;
     delete dynamicSymbolList;
     delete relocList;
     delete aliasMap;
@@ -145,12 +146,12 @@ void ElfSpace::useAlternativeSymbolFileMultiArch() {
 
 bool ElfSpace::tryAlternativeSymbolFile(std::string symbolFile) {
     try {
-        ElfMap *symbolElf = new ElfMap(symbolFile.c_str());
-        this->symbolList = SymbolList::buildSymbolList(symbolElf);
-        return true;
+        this->symbolElf = new ElfMap(symbolFile.c_str());
     }
     catch (...) {
-        this->symbolList = nullptr;
+        this->symbolElf = nullptr;
         return false;
     }
+    this->symbolList = SymbolList::buildSymbolList(this->symbolElf);
+    return true;
 }

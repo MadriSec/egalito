@@ -20,6 +20,7 @@ private:
     std::string fullPath;
     Module *module;
 private:
+    ElfMap *symbolElf;
     SymbolList *symbolList;
     SymbolList *dynamicSymbolList;
     RelocList *relocList;
