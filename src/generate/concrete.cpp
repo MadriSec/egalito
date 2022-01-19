@@ -1229,6 +1229,7 @@ void ElfFileWriter::serialize() {
         }
         fs << *section;
     }
+    fs.flush();
     fchmod(fd, 0744);
     close(fd);
 }

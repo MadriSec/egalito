@@ -17,7 +17,7 @@ last_git_update() {
     # of the provided file
     # Then strips the spaces to provide a string that matches
     # '[[CC]YY]MMDDhhmm[.ss]' (expected by `touch -t`)
-    git log --pretty=format:%cd -n 1 --date=iso "$1" | sed "s/-//g;s/ //;s/://;s/:/\./;s/ .*//";
+    git log --pretty=format:%cd -n 1 --date=iso-local "$1" | sed "s/-//g;s/ //;s/://;s/:/\./;s/ .*//";
 }
 
 # Iterate over submodules, setting mtime of all files in submodule to
