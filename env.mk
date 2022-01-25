@@ -91,6 +91,8 @@ ifdef USE_KEYSTONE  # set USE_KEYSTONE=1 to link with str->instr assembler
 	CXXFLAGS += -D USE_KEYSTONE
 endif
 
+CLDFLAGS += -lgtirb -lgtirb_proto -lprotobuf
+
 ifdef PROFILE  # set PROFILE=1 to enable gprof profiling
 	CFLAGS += -no-pie -pg
 	CXXFLAGS += -no-pie -pg

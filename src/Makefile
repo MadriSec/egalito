@@ -11,6 +11,7 @@ DISASM_SOURCES      = $(wildcard disasm/*.cpp)
 DWARF_SOURCES       = $(wildcard dwarf/*.cpp)
 ELF_SOURCES         = $(wildcard elf/*.cpp)
 GENERATE_SOURCES    = $(wildcard generate/*.cpp)
+GTIRB_SOURCES       = $(wildcard gtirb/*.cpp)
 INSTR_SOURCES       = $(wildcard instr/*.cpp)
 LOAD_SOURCES        = $(wildcard load/*.cpp)
 ifeq (aarch64,$(P_ARCH))
@@ -41,10 +42,10 @@ dep-filename = $(foreach s,$1,$(BUILDDIR)$(dir $s)$(basename $(notdir $s)).d)
 
 TYPICAL_SOURCES = $(CHUNK_SOURCES) $(ELF_SOURCES) $(TRANSFORM_SOURCES) \
 		$(LOG_SOURCES) $(PASS_SOURCES) $(DISASM_SOURCES) $(CONDUCTOR_SOURCES) \
-		$(ANALYSIS_SOURCES) $(CMINUS_SOURCES) $(GENERATE_SOURCES) $(INSTR_SOURCES) \
-		$(OPERATION_SOURCES) $(DWARF_SOURCES) $(ARCHIVE_SOURCES) $(UTIL_SOURCES) \
-		$(SNIPPET_SOURCES) $(RUNTIME_SOURCES) load/emulator.cpp load/segmap.cpp \
-		load/callinit.cpp
+		$(ANALYSIS_SOURCES) $(CMINUS_SOURCES) $(GENERATE_SOURCES) $(GTIRB_SOURCES) \
+		$(INSTR_SOURCES) $(OPERATION_SOURCES) $(DWARF_SOURCES) $(ARCHIVE_SOURCES) \
+		$(UTIL_SOURCES) $(SNIPPET_SOURCES) $(RUNTIME_SOURCES) load/emulator.cpp \
+		load/segmap.cpp load/callinit.cpp
 TYPICAL_OBJECTS = $(call obj-filename,$(TYPICAL_SOURCES))
 LOADER_SOURCES = $(TYPICAL_SOURCES) $(BREAK_SOURCES) $(LOAD_SOURCES)
 LOADER_OBJECTS = $(call obj-filename,$(LOADER_SOURCES))
