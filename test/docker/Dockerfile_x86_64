@@ -1,15 +1,38 @@
-FROM debian:buster
+# The base OS of the docker image can be modified by providing (e.g.) the flag
+# --build-arg BASE_IMAGE=ubuntu:18.04
+# to docker build
+ARG BASE_IMAGE="debian:buster"
 
-RUN apt-get update && apt-get install -y \
-build-essential \
-lsb-release \
-g++ \
-gdb \
-git \
-gosu \
-libc6-dbg \
-libcapstone-dev \
-libreadline-dev \
-libboost-python-dev \
-unzip \
-&& apt-get clean && rm -rf /var/lib/apt/lists/*
+# Build a docker image with the dependencies for building and installing egalito
+FROM ${BASE_IMAGE} AS dependencies
+
+RUN apt-get update && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  build-essential \
+  g++ \
+  gdb \
+  git \
+  gosu \
+  libc6-dbg \
+  libstdc++6-7-dbg \
+  libreadline-dev \
+  lsb-release \
+  unzip
+
+# Add packages to the dependencies image for linting and testing
+FROM dependencies AS test
+
+RUN DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y python3-pip clang-format-6.0 lcov && \
+    python3 -m pip install pre-commit
+
+RUN ln -s /usr/bin/clang-format-6.0 /usr/bin/clang-format
+
+CMD ["/bin/bash"]
+
+# Add the script which allows you to run the docker image as a specific user
+# for easier development work when volumes are mounted
+FROM test AS dev
+COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
