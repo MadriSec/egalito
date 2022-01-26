@@ -5,9 +5,9 @@ include:
 variables:
     GIT_SUBMODULE_STRATEGY: recursive
     GIT_STRATEGY: clone
-    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/test/debian-buster
-    UBUNTU18_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-18.04
-    UBUNTU20_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-20.04
+    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/test/debian-buster:gtirb
+    UBUNTU18_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-18.04:gtirb
+    UBUNTU20_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-20.04:gtirb
     # AARCH64_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/aarch64
     # ARM_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/egalito/arm
     DOCKER_DIR: ./test/docker
