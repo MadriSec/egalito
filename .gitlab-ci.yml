@@ -141,6 +141,14 @@ tests-ubuntu18:
   needs: [build-ubuntu18]
   image: $UBUNTU18_IMAGE
 
+gtirb-test-ubuntu18:
+  extends: .test-template
+  needs: [build-ubuntu18]
+  image: $UBUNTU18_IMAGE
+  stage: test
+  script:
+    - test/gtirb/run_test.sh
+
 tests-debian:
   extends: .test-template
   needs: [build-debian]
