@@ -7,7 +7,7 @@ BUILT_IMAGES=()
 for BASE_IMAGE in "ubuntu:20.04" "ubuntu:18.04" "debian:buster"; do {
     # Gives test image based on ubuntu:20.04 the tag test/ubuntu-20.04
     # (Tags within the registry can be used for versioning)
-    TAG="${REGISTRY_BASE}/test/${BASE_IMAGE//:/-}"
+    TAG="${REGISTRY_BASE}/test/${BASE_IMAGE//:/-}:gtirb"
     set -x
     if docker build \
             --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
