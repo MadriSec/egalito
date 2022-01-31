@@ -124,8 +124,8 @@ protected:
     /**
      * @brief Visit chunks stored in standard iterators
      */
-    template <typename ChildT>
-    void recurse(auto &parent) {
+    template <typename ChildT, typename IterT>
+    void recurse(IterT &parent) {
         chunk_depth += 1;
         for (ChildT child : parent) {
             visit(child);
