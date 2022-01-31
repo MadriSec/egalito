@@ -791,11 +791,22 @@ public:
     void registerDataBlock(address_t varAddr, size_t varSize) {
         // Check if we have to create a block at this address
         size_t curSize = block_addrs[varAddr];
-        if (curSize > 0) {
-            // If there is already a sized block at this address, we don't have
-            // to make one. Though it should be the same size as this variable
-            // or it may cause overlap
-            assert(curSize == varSize || varSize == 0);
+        if (curSize > 0 && varSize > 0) {
+            // If there is already a sized data block registered at this
+            // address, attempt to create a new block that covers the difference
+            // in the sizes.
+            if (curSize < varSize) {
+                // Create block from end of existing variable to end of the new
+                // one.
+                registerDataBlock(varAddr + curSize, varSize - curSize);
+            }
+            else if (curSize > varSize) {
+                // Decrease size of existing block, and create block to fill the
+                // space.
+                block_addrs[varAddr] = varSize;
+                registerDataBlock(varAddr + varSize, curSize - varSize);
+            }
+            // If the sizes are the same there is nothing to be done
         }
         else if (varSize > 0) {
             // If a block needs to cover this whole set of bytes, add it now.
