@@ -585,9 +585,9 @@ public:
                 if (dst->getAddress()) {
                     // If the destination symbol points to an address,
                     // we will later ensure that a code/data block starts on
-                    // that address (Accessing the map here creates the default
-                    // entry if it does not exist)
-                    block_addrs[uint64_t(*dst->getAddress())];
+                    // that address.
+                    // (Insert has no effect if the key is already mapped)
+                    block_addrs.insert({address_t(*dst->getAddress()), 0});
                 }
                 else {
                     LOG(0, "NO ADDRESS ON CREATED SYBMOL");
@@ -772,12 +772,14 @@ public:
                                     eSection->getOriginalOffset();
             const char *sec_end = sec_start + eSection->getSize();
             auto intervalBegin = gCtx.byteInterval->bytes_begin<char>();
-            if (eSection->getName() != ".bss") {
-                std::copy(sec_start, sec_end, intervalBegin);
-            }
-            else {
+            if (eSection->isBss()) {
                 std::fill(
                     intervalBegin, intervalBegin + eSection->getSize(), '\0');
+            }
+            else {
+                // FIXME: This is copying directly from the memory map
+                // (which may not be completely filled out in egalito)
+                std::copy(sec_start, sec_end, intervalBegin);
             }
         }
         recurse<DataVariable *>(eSection);
