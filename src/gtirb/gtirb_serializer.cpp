@@ -1,7 +1,5 @@
 #include <iostream>
 #include <fstream>
-// For getting parent path
-#include <filesystem>
 
 #include "gtirb_serializer.h"
 
@@ -293,15 +291,15 @@ public:
             auto &libraries = *module->getAuxData<gtirb::schema::Libraries>();
             libraries.push_back(libraryName);
 
-            // FIXME: This libraryPath is the resolved path to the library,
+            // TODO: This libraryPath is the resolved path to the library,
             // not necessarily an rpath encoded in the binary.
             // libraryPaths only really needs rpaths, but I am not sure how to
             // get them.
-            auto &libraryPaths =
-                *module->getAuxData<gtirb::schema::LibraryPaths>();
-            std::string libDir =
-                std::filesystem::path(libraryPath).parent_path().string();
-            libraryPaths.push_back(libDir);
+            // auto &libraryPaths =
+            //    *module->getAuxData<gtirb::schema::LibraryPaths>();
+            // std::string libDir =
+            //    std::filesystem::path(libraryPath).parent_path().string();
+            // libraryPaths.push_back(libDir);
         }
     } gCtx;
 
