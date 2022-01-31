@@ -75,7 +75,7 @@ std::string eSymTypeStr(Symbol::SymbolType eSymType) {
         case Symbol::TYPE_UNKNOWN:
             return "UNKNOWN";
         default:
-            assert(false);
+            throw(std::runtime_error("Unknown symbol type"));
     }
 }
 
@@ -88,7 +88,7 @@ std::string eSymBindingStr(Symbol::BindingType eBindType) {
         case Symbol::BIND_WEAK:
             return "WEAK";
         default:
-            assert(false);
+            throw(std::runtime_error("Unknown bind type"));
     }
 }
 
@@ -353,10 +353,10 @@ public:
                 li.dst_offset = link->getTargetAddress() - target->getAddress();
             }
             if (dynamic_cast<DataOffsetLink *>(link)) {
-                auto *target = link->getTarget();
                 // The output still functions if DataOffsetLinks are stored as
                 // sym+offsets here, but ddisasm appears makes separate symbols
                 // instead, so keeping these commented out matches behavior best
+                // auto *target = link->getTarget();
                 // li.dst_addr = target->getAddress();
                 // li.dst_offset = link->getTargetAddress() -
                 // target->getAddress();
@@ -436,8 +436,8 @@ public:
             gtirb::Addr gAddr(*dst_addr);
             for (gtirb::Symbol &symbol : module->findSymbols(gAddr)) {
                 if (dst_name and symbol.getName() != *dst_name) {
-                    LOG(0, "Mismatched names in " << label() << " (points to "
-                                                  << symbol.getName() << ")");
+                    LOG(10, "Mismatched names in " << label() << " (points to "
+                                                   << symbol.getName() << ")");
                 }
                 return &symbol;
             }
@@ -566,7 +566,7 @@ public:
             }
             // Otherwise, create the destination symbol if necessary
             if (!dst) {
-                LOG(0, "Creating dest symbol for " << linkInfo.label());
+                LOG(10, "Creating dest symbol for " << linkInfo.label());
                 dst = linkInfo.create_dst_symbol(C, gModule);
                 if (dst->getAddress()) {
                     // If the destination symbol points to an address,
@@ -575,6 +575,13 @@ public:
                     // entry if it does not exist)
                     block_addrs[uint64_t(*dst->getAddress())];
                 }
+                else {
+                    LOG(0, "NO ADDRESS ON CREATED SYBMOL");
+                    continue;
+                }
+            }
+            else {
+                log_chunk("    synthetic: false");
             }
 
             // FIXME: IMMEDIATELY!! Critical!
@@ -591,25 +598,25 @@ public:
                     src.addSymbolicExpression<gtirb::SymAddrConst>(
                         offset + i, linkInfo.dst_offset, dst, linkInfo.attrs);
                 }
-                LOG(0, "Added symbolic expression for " << linkInfo.label()
-                                                        << " at " << offset);
+                LOG(10, "Added symbolic expression for " << linkInfo.label()
+                                                         << " at " << offset);
             }
         }
 
-        // Add blocks for regions that aren't covered by existing code or data
-        // blocks:
+        // Add data blocks for regions that aren't covered by existing ones
 
         // Keep a pointer to the current location in each byte interval,
         // then run through the created blocks in ascending order,
         // filling in gaps in the blocks as you go
+
         std::unordered_map<gtirb::ByteInterval *, gtirb::Addr> addrCursors;
         for (auto &[blockAddr, blockSize] : block_addrs) {
             // Should be exactly one interval on this address at this point
             auto intervals = gModule->findByteIntervalsOn(
                 gtirb::Addr(blockAddr));
             if (intervals.begin() == intervals.end()) {
-                std::cerr << "WARNING: No interval covering " << blockAddr
-                          << std::endl;
+                std::cerr << "WARNING: No interval covering " << std::hex
+                          << blockAddr << std::endl;
                 continue;
             }
             gtirb::ByteInterval &interval = *intervals.begin();
@@ -631,14 +638,13 @@ public:
                 cursor = gAddr + blockSize;
             }
             else {
-                // If the blocks fall behind the cursor,
-                // that means that there's overlap and blocks will need to be
-                // split.
-                // FIXME: This could happen (if a symbol points to the middle of
-                // an existing block) and should be handled at some point
-                // assert(cursor == gAddr);
+                // If blockAddr is behind the cursor addr,
+                // that means that the new block falls in the middle of
+                // a previously created one.
+                // Right now we just skip over the overlap to the next block.
+                // TODO: Creating overlap or splitting the existing block might
+                // be better.
                 cursor = std::max(cursor, gtirb::Addr(blockAddr + blockSize));
-                // cursor += blockSize;
             }
         }
 
@@ -661,6 +667,7 @@ public:
 
     virtual void visit(Library *library) {
         log_chunk("- Library: ", library->getName());
+        log_chunk("  path: ", library->getResolvedPath());
         if (library->getModule() == eCtx.program->getMain()) {
             // The main library is parsed elsewhere
             // so it can be skipped here
@@ -744,6 +751,8 @@ public:
             // If it is not a code section, add all of the bytes for the section
             // now. Bytes from code sections will be added function by function
             // later.
+            // TODO: Code sections might contain variables as well,
+            // which is likely to cause issues if we never copy over the bytes.
             const std::string &region_bytes = eCtx.region->getDataBytes();
             const char *sec_start = region_bytes.c_str() +
                                     eSection->getOriginalOffset();
@@ -773,7 +782,6 @@ public:
      */
     void registerDataBlock(address_t varAddr, size_t varSize) {
         // Check if we have to create a block at this address
-        LOG(0, std::hex << "block addr is " << varAddr);
         size_t curSize = block_addrs[varAddr];
         if (curSize > 0) {
             // If there is already a sized block at this address, we don't have
@@ -884,12 +892,12 @@ public:
         // Ensure a data block will start at this address
         registerDataBlock(variable->getAddress(), variable->getSize());
 
-        // TODO: It seems taht globalVariable can hold either 'symbol' or
-        // 'dynamicSymbol' Not sure if they need to be treated differently --
-        // nonNullSymbol gets whichever is set
+        // TODO:  globalVariable can hold either 'symbol' or 'dymamicSymbol'
+        // Dynamic symbols are handled through externalSymbol, so are not added
+        // here
         Symbol *target = variable->getSymbol();
         if (!target) {
-            log_chunk("Dynamic - returning");
+            log_chunk("  Dynamic: true");
             return;
         }
         assert(target);
@@ -975,10 +983,16 @@ public:
         log_chunk("  Block size: ", block->getSize());
         log_chunk("  Block offset: ", blockOffset);
 
+        if (blockOffset + block->getSize() > gCtx.byteInterval->getSize()) {
+            std::cout << "ERROR: End of block at " << block->getAddress()
+                      << " falls outside of bounds of byte interval for "
+                      << eCtx.function->getName() << std::endl;
+            return;
+        }
+
         gtirb::CodeBlock *codeBlock = gCtx.byteInterval
                                           ->addBlock<gtirb::CodeBlock>(
                                               C, blockOffset, block->getSize());
-        LOG(0, "block addr is " << block->getAddress());
         block_addrs[block->getAddress()] = block->getSize();
 
         gCtx.addBlockToFunction(codeBlock);
@@ -992,16 +1006,9 @@ public:
     virtual void visit(Instruction *instruction) {
         // Instructions within functions are deserialized one at a time
         auto instrAddr = instruction->getAddress();
-        auto instrPoss = instruction->getAssignedPosition();
 
         auto instrOffset = instrAddr -
                            (uint64_t)*gCtx.byteInterval->getAddress();
-        if (instrOffset > gCtx.byteInterval->getSize()) {
-            std::cerr << "ERROR: Instruction at " << instrAddr
-                      << " falls outside of bounds of byte interval"
-                      << std::endl;
-            assert(false);
-        }
 
         auto intervalBegin = gCtx.byteInterval->bytes_begin<char>();
         auto instrPos = intervalBegin + instrOffset;
@@ -1014,12 +1021,10 @@ public:
 
         log_chunk("- Intruction len: ", data.size());
         if (data.size() > gCtx.byteInterval->getSize() - instrOffset) {
-            LOG(0,
-                "WARNING: Truncating instruction that extends past end of byte "
-                "interval");
-            assert(false);
-            data.resize(gCtx.byteInterval->getSize() - instrOffset);
-            log_chunk("- Intruction len: ", data.size());
+            std::cerr << "ERROR: Instruction at " << instrAddr
+                      << " falls outside of bounds of byte interval"
+                      << std::endl;
+            return;
         }
         log_chunk("  Instruction offset: ", instrOffset);
         std::copy(data.begin(), data.end(), instrPos);
