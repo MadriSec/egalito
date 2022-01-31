@@ -64,7 +64,7 @@ void GtirbApp::run(int argc, char **argv) {
         {"--deep", [&includeDeps] () { includeDeps = true; }},
     };
 
-    for(int a = 1; a < argc; a ++) {
+    for(int a = 1; a < argc-1; a ++) {
         const char *arg = argv[a];
         if(arg[0] == '-') {
             bool found = false;
@@ -80,21 +80,14 @@ void GtirbApp::run(int argc, char **argv) {
                 break;
             }
         }
-        else if(argv[a] && argv[a + 1]) {
-            parse(argv[a], includeDeps);
-            generate(argv[a + 1]);
-            break;
-        }
-        else {
-            std::cout << "Error: no output filename given!\n";
-            break;
-        }
     }
+    parse(argv[argc-2], includeDeps);
+    generate(argv[argc-1]);
 }
 
 int main(int argc, char *argv[]) {
     if(argc < 3) {
-        printUsage(argv[0] ? argv[0] : "etharden");
+        printUsage(argv[0] ? argv[0] : "etgtirb");
         return 0;
     }
 

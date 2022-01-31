@@ -174,10 +174,6 @@ public:
         gtirb::Context &C, gtirb::IR &ir, std::ofstream *chunklog = nullptr)
         : C(C), ir(ir), chunklog(chunklog){};
 
-    // FIXME: Why do I suddenly have to specify this?
-    // That only started happening recently
-    ~ChunkSerializer() noexcept {}
-
     /**
      * There is no context when using the visitor pattern
      * so there isn't a good way of determining, e.g.,
@@ -374,7 +370,7 @@ public:
                     li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
                 }
             }
-            // TODO: How do each of these map onto egalito constructs?
+            // TODO: How do each of these map onto gtirb constructs?
             // if (dynamic_cast<JumpTableLink *>(link)) {
             //     This might map onto symAddrAddr, at least in the one test
             //     case I looked at
@@ -401,10 +397,9 @@ public:
         /**
          * @brief Generate a name based on the destination symbol's address
          */
-        std::string generate_dst_name() {
-            assert(dst_addr);
+        static std::string symAddrName(address_t dst_addr) {
             std::stringstream ss;
-            ss << ".L_" << std::hex << *dst_addr;
+            ss << ".L_" << std::hex << dst_addr;
             return ss.str();
         }
 
@@ -468,7 +463,7 @@ public:
                 return module->addSymbol(C, *dst_name);
             }
             return module->addSymbol(
-                C, gtirb::Addr(*dst_addr), generate_dst_name());
+                C, gtirb::Addr(*dst_addr), symAddrName(*dst_addr));
         }
 
         /**
@@ -483,7 +478,8 @@ public:
                 ss << "0x" << *dst_addr;
             else
                 ss << "<UNKNOWN ADDR>";
-            ss << " (" << (dst_name ? *dst_name : generate_dst_name()) << ")";
+            ss << " (" << (dst_name ? *dst_name : symAddrName(*dst_addr))
+               << ")";
             return ss.str();
         }
     };
@@ -496,7 +492,7 @@ public:
     // block Otherwise, it maps the address to a block of size 0
     std::map<address_t, size_t> block_addrs;
 
-    virtual void visit(Program *eProgram) {
+    void visit(Program *eProgram) {
         eCtx.program = eProgram;
 
         recurse<Module *>(eProgram);
@@ -507,7 +503,7 @@ public:
         recurse<Library *>(eProgram->getLibraryList());
     }
 
-    virtual void visit(Module *eModule) {
+    void visit(Module *eModule) {
         log_chunk("- Chunk: !module ", eModule->getName());
 
         gtirb::Module *gModule = ir.addModule(C, eModule->getName());
@@ -669,7 +665,7 @@ public:
         }
     }
 
-    virtual void visit(Library *library) {
+    void visit(Library *library) {
         log_chunk("- Library: ", library->getName());
         log_chunk("  path: ", library->getResolvedPath());
         if (library->getModule() == eCtx.program->getMain()) {
@@ -691,7 +687,7 @@ public:
         // recurse(library->getModule());
     }
 
-    virtual void visit(DataRegion *dataRegion) {
+    void visit(DataRegion *dataRegion) {
         // A dataRegion is a contiguous set of bytes which may hold parts of one
         // or more dataSections
         eCtx.region = dataRegion;
@@ -703,7 +699,7 @@ public:
         recurse(dataRegion);
     }
 
-    virtual void visit(DataSection *eSection) {
+    void visit(DataSection *eSection) {
         // TODO: If sections are not contiguous, this will likely break
 
         // A dataSection is an elfSection that is within a single region
@@ -743,12 +739,6 @@ public:
             gCtx.byteInterval = gSection->addByteInterval(
                 C, gtirb::Addr(eSection->getAddress()), eSection->getSize());
             log_chunk("  Byte interval size: ", gCtx.byteInterval->getSize());
-
-            // TODO: This is a bit of a weird usage,
-            // but accessing a map entry creates the default value.
-            // Here, we want it to be 0 unless it already exists, so this
-            // achieves that.
-            block_addrs[eSection->getAddress()];
         }
 
         if (!eSection->isCode()) {
@@ -823,7 +813,7 @@ public:
      * "Represents a variable within a global data section that points at
      * another Chunk"
      */
-    virtual void visit(DataVariable *variable) {
+    void visit(DataVariable *variable) {
         log_chunk("- Chunk: !dataVariable ", variable->getName());
         log_chunk("  Address: ", std::hex, variable->getAddress());
         log_chunk("  Size: ", variable->getSize());
@@ -858,18 +848,17 @@ public:
         // ('target' seems to always be specified if 'dest' is not)
         assert(target);
 
-        std::stringstream ss;
-        ss << ".L_" << std::hex << variable->getAddress();
         // The symbol has to be created so the symbol forwarding table can be
         // made
+        std::string symName = LinkInfo::symAddrName(variable->getAddress());
         gtirb::Symbol *gSymbol = gCtx.module->addSymbol(
-            C, gtirb::Addr(variable->getAddress()), ss.str());
+            C, gtirb::Addr(variable->getAddress()), symName);
 
         log_chunk("  Type: Target");
         log_chunk("  Target name: ", target->getName());
         log_chunk("  Target addr: ", target->getAddress());
         log_chunk("  Target type: ", target->getType());
-        log_chunk("  Symbol name: ", ss.str());
+        log_chunk("  Symbol name: ", symName);
 
         // TODO: Deal with aliases?
 
@@ -942,7 +931,7 @@ public:
             elfSection->getName());
     }
 
-    virtual void visit(Function *function) {
+    void visit(Function *function) {
         log_chunk("- Chunk: !function ", function->getName());
         log_chunk("  Addr: ", function->getAddress());
         log_chunk("  Position: ", function->getPosition()->get());
@@ -993,7 +982,7 @@ public:
         eCtx.function = nullptr;
     }
 
-    virtual void visit(Block *block) {
+    void visit(Block *block) {
         uint64_t blockOffset = block->getAddress() -
                                (uint64_t)*gCtx.byteInterval->getAddress();
         log_chunk("- Block addr: ", block->getAddress());
@@ -1020,7 +1009,7 @@ public:
         gCtx.codeBlock = nullptr;
     }
 
-    virtual void visit(Instruction *instruction) {
+    void visit(Instruction *instruction) {
         // Instructions within functions are deserialized one at a time
         auto instrAddr = instruction->getAddress();
 
@@ -1070,7 +1059,7 @@ public:
         }
     }
 
-    virtual void visit(ExternalSymbol *eSymbol) {
+    void visit(ExternalSymbol *eSymbol) {
         // Just adding a symbol with this name appears to be enough
         log_chunk("- Chunk: !externalSymbol ", eSymbol->getName());
         gtirb::Symbol *gSymbol = gCtx.module->addSymbol(C, eSymbol->getName());
@@ -1078,56 +1067,54 @@ public:
             eSymTypeStr(eSymbol->getType()),
             eSymBindingStr(eSymbol->getBind()));
     }
-    virtual void visit(InitFunction *initFunction) {
+    void visit(InitFunction *initFunction) {
         // TODO: Entirely unsure if/how to deal with this
     }
 
     /** The following chunksa are simply recursed into */
-    virtual void visit(FunctionList *functionList) { recurse(functionList); }
-    virtual void visit(PLTList *pltList) { recurse(pltList); }
-    virtual void visit(JumpTableList *jumpTableList) {
+    void visit(FunctionList *functionList) { recurse(functionList); }
+    void visit(PLTList *pltList) { recurse(pltList); }
+    void visit(JumpTableList *jumpTableList) {
         log_chunk("- Chunk: !jumpTableList ", jumpTableList->getName());
         recurse(jumpTableList);
     }
 
-    virtual void visit(DataRegionList *dataRegionList) {
-        recurse(dataRegionList);
-    };
-    virtual void visit(VTableList *vtableList) { recurse(vtableList); }
-    virtual void visit(ExternalSymbolList *externalSymbolList) {
+    void visit(DataRegionList *dataRegionList) { recurse(dataRegionList); };
+    void visit(VTableList *vtableList) { recurse(vtableList); }
+    void visit(ExternalSymbolList *externalSymbolList) {
         recurse(externalSymbolList);
     }
-    virtual void visit(InitFunctionList *initFunctionList) {
+    void visit(InitFunctionList *initFunctionList) {
         recurse(initFunctionList);
     }
-    virtual void visit(LibraryList *libraryList) { recurse(libraryList); }
-    virtual void visit(JumpTable *jumpTable) {
+    void visit(LibraryList *libraryList) { recurse(libraryList); }
+    void visit(JumpTable *jumpTable) {
         log_chunk("- Chunk: !jumpTable ", jumpTable->getName());
         recurse(jumpTable);
     }
 
-    virtual void visit(PLTTrampoline *trampoline) {
+    void visit(PLTTrampoline *trampoline) {
         std::string name = trampoline->getName();
         log_chunk("- Chunk: !trampoline ", name);
         log_chunk("  Location: ", trampoline->getAddress());
         log_chunk("  GotPLTEntry: ", trampoline->getGotPLTEntry());
         gCtx.module->addSymbol(C, name);
     }
-    virtual void visit(JumpTableEntry *jumpTableEntry) {
+    void visit(JumpTableEntry *jumpTableEntry) {
         // TODO: Jump table serialization does not work
         log_chunk("- Chunk: !jtentry ", jumpTableEntry->getName());
     }
-    virtual void visit(MarkerList *markerList) {
+    void visit(MarkerList *markerList) {
         log_chunk("- Chunk: !markerList ", markerList->getName());
         recurse(markerList);
     }
-    virtual void visit(Marker *marker) {
+    void visit(Marker *marker) {
         // TODO: SectionStartMarker and SectionEndMarker don't call visit() in
         // their accept function so if this is needed, it won't ever get called
         log_chunk("- Chunk: !marker ", marker->getName());
     }
-    virtual void visit(VTable *vtable) {}
-    virtual void visit(VTableEntry *vtableEntry) {
+    void visit(VTable *vtable) {}
+    void visit(VTableEntry *vtableEntry) {
         log_chunk("- Chunk: !vTableEntry ", vtableEntry->getName());
     }
 };
