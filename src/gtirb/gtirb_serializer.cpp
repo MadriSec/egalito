@@ -1,5 +1,7 @@
 #include <iostream>
 #include <fstream>
+// For getting parent path
+#include <filesystem>
 
 #include "gtirb_serializer.h"
 
@@ -286,10 +288,20 @@ public:
         /**
          * @brief Add a library as a dependency of the current module
          */
-        void addLibrary(std::string libraryName) {
+        void addLibrary(std::string libraryName, std::string libraryPath) {
             assert(module);
             auto &libraries = *module->getAuxData<gtirb::schema::Libraries>();
             libraries.push_back(libraryName);
+
+            // FIXME: This libraryPath is the resolved path to the library,
+            // not necessarily an rpath encoded in the binary.
+            // libraryPaths only really needs rpaths, but I am not sure how to
+            // get them.
+            auto &libraryPaths =
+                *module->getAuxData<gtirb::schema::LibraryPaths>();
+            std::string libDir =
+                std::filesystem::path(libraryPath).parent_path().string();
+            libraryPaths.push_back(libDir);
         }
     } gCtx;
 
@@ -517,6 +529,8 @@ public:
             gtirb::schema::SymbolForwarding::Type());
         gModule->addAuxData<gtirb::schema::Libraries>(
             gtirb::schema::Libraries::Type());
+        gModule->addAuxData<gtirb::schema::LibraryPaths>(
+            gtirb::schema::LibraryPaths::Type());
 
         // TODO: There's probably a real place to get this info within egalito
         gModule->setFileFormat(gtirb::FileFormat::ELF);
@@ -674,7 +688,7 @@ public:
             log_chunk("  Main: True");
             return;
         };
-        gCtx.addLibrary(library->getName());
+        gCtx.addLibrary(library->getName(), library->getResolvedPath());
         if (!library->getModule()) {
             log_chunk("  Has module: False");
             // TODO: do other aspects of the library have to be dealt with?
