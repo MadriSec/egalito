@@ -113,10 +113,10 @@ void ElfSpace::useAlternativeSymbolFile() {
 
     }
 
-    useAlternativeSymbolFileGT();
+    useAlternativeSymbolFileMultiArch();
 }
 
-void ElfSpace::useAlternativeSymbolFileGT() {
+void ElfSpace::useAlternativeSymbolFileMultiArch() {
     auto debuglink = elf->findSection(".gnu_debuglink");
     if(!debuglink) {
         return;

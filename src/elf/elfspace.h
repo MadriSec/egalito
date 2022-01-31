@@ -47,7 +47,7 @@ public:
     void setAliasMap(FunctionAliasMap *aliasMap) { this->aliasMap = aliasMap; }
 private:
     void useAlternativeSymbolFile();
-    void useAlternativeSymbolFileGT();
+    void useAlternativeSymbolFileMultiArch();
     bool tryAlternativeSymbolFile(std::string symbolFile);
 };
 
