@@ -598,20 +598,12 @@ public:
                 log_chunk("    synthetic: false");
             }
 
-            // FIXME: IMMEDIATELY!! Critical!
-            // I have not yet found where in egalito to find the byte offset
-            // into an instruction at which a 'link' takes place.
-            // This buckshot approach adds a symbolic expression for all of the
-            // first four bytes in the expression. It happens to work with
-            // gtirb-pprinter for now, but is definitely bad.
             for (gtirb::ByteInterval &src :
                 gModule->findByteIntervalsOn(gtirb::Addr(linkInfo.src_addr))) {
                 auto offset = gtirb::Addr(linkInfo.src_addr) -
                               *src.getAddress();
-                for (int i = 0; i < 4; i++) {
-                    src.addSymbolicExpression<gtirb::SymAddrConst>(
-                        offset + i, linkInfo.dst_offset, dst, linkInfo.attrs);
-                }
+                src.addSymbolicExpression<gtirb::SymAddrConst>(
+                    offset, linkInfo.dst_offset, dst, linkInfo.attrs);
                 LOG(10, "Added symbolic expression for " << linkInfo.label()
                                                          << " at " << offset);
             }
@@ -1047,8 +1039,25 @@ public:
 
         auto link = semantic->getLink();
         if (link) {
-            links.push_back(
-                LinkInfo::from_link(instrAddr, link, eCtx.function->getName()));
+            int op_offset = 0;
+            if (auto *cfi = dynamic_cast<ControlFlowInstructionBase *>(
+                    semantic)) {
+                op_offset = cfi->getOpcode().size();
+                log_chunk("  Link Type: CFI");
+                log_chunk("  Mnemonic: ", cfi->getMnemonic());
+            }
+            else if (auto *li = dynamic_cast<LinkedInstructionBase *>(
+                         semantic)) {
+                op_offset = li->getDispOffset();
+                log_chunk("  Link Type: LinkedInstruction");
+            }
+            else {
+                throw(std::runtime_error("Cannot determine link type"));
+            }
+            log_chunk("  Link offset: ", op_offset);
+
+            links.push_back(LinkInfo::from_link(
+                instrAddr + op_offset, link, eCtx.function->getName()));
         }
     }
 
