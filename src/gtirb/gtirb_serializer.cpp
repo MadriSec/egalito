@@ -592,15 +592,18 @@ public:
                 log_chunk("    synthetic: false");
             }
 
-            for (gtirb::ByteInterval &src :
-                gModule->findByteIntervalsOn(gtirb::Addr(linkInfo.src_addr))) {
-                auto offset = gtirb::Addr(linkInfo.src_addr) -
-                              *src.getAddress();
-                src.addSymbolicExpression<gtirb::SymAddrConst>(
-                    offset, linkInfo.dst_offset, dst, linkInfo.attrs);
-                LOG(10, "Added symbolic expression for " << linkInfo.label()
-                                                         << " at " << offset);
-            }
+            auto byteIntervals = gModule->findByteIntervalsOn(
+                gtirb::Addr(linkInfo.src_addr));
+            auto interval = byteIntervals.begin();
+            // Ensure that there is exactly one interval on this address
+            assert(interval != byteIntervals.end());
+            assert(std::next(interval) == byteIntervals.end());
+            auto offset = gtirb::Addr(linkInfo.src_addr) -
+                          *interval->getAddress();
+            interval->addSymbolicExpression<gtirb::SymAddrConst>(
+                offset, linkInfo.dst_offset, dst, linkInfo.attrs);
+            LOG(10, "Added symbolic expression for " << linkInfo.label()
+                                                     << " at " << offset);
         }
 
         // Add data blocks for regions that aren't covered by existing ones
@@ -948,22 +951,24 @@ public:
 
         auto addr = function->getAddress();
 
-        for (auto &s : gCtx.module->findSections(eCtx.section->getName())) {
-            // Only one section of each name
-            assert(!gCtx.section);
-            gCtx.section = &s;
-        }
-        assert(gCtx.section);
+        auto sections = gCtx.module->findSections(eCtx.section->getName());
+        // The section must exist
+        // And there must be only one section by that name
+        assert(sections.begin() != sections.end());
+        assert(std::next(sections.begin()) == sections.end());
 
-        gCtx.byteInterval = nullptr;
-        for (auto &bi : gCtx.section->findByteIntervalsOn(gtirb::Addr(addr))) {
-            // Only should be one byte interval covering these bytes
-            assert(!gCtx.byteInterval);
-            gCtx.byteInterval = &bi;
-        }
-        if (!gCtx.byteInterval) {
+        gCtx.section = &*sections.begin();
+
+        auto intervals = gCtx.section->findByteIntervalsOn(gtirb::Addr(addr));
+        if (intervals.begin() == intervals.end()) {
+            // Create the byte interval if it doesn't exist
             gCtx.byteInterval = gCtx.section->addByteInterval(
                 C, gtirb::Addr(function->getAddress()), function->getSize());
+        }
+        else {
+            // Otherwise, there should be only one byte interval on this address
+            assert(std::next(intervals.begin()) == intervals.end());
+            gCtx.byteInterval = &*intervals.begin();
         }
 
         log_chunk("  Symbol Section: ", gCtx.section->getName());
