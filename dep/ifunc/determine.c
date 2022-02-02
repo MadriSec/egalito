@@ -62,9 +62,7 @@ int main(int argc, char **argv)
     buf[1] = 1;
     buf2[0] = 0;
     buf2[1] = 2;
-    // ifunc requires strcpy.
-    // This is not included in Egalito's apps or library anyway, so we can safely ignore it.
-    strcpy(buf, buf2); /* Flawfinder: ignore */
+    strcpy(buf, buf2);
     strncpy(buf, buf2, 0);
     stpcpy(buf, buf2);
     stpncpy(buf, buf2, 0);
@@ -92,9 +90,7 @@ int main(int argc, char **argv)
             nop();
         }
     }
-    // ifunc requires strcat.
-    // This is not included in Egalito's apps or library anyway, so we can safely ignore it.
-    if(strcat(buf2, buf)) { /* Flawfinder: ignore */
+    if(strcat(buf2, buf)) {
         nop();
     }
 
