@@ -9,6 +9,7 @@
 
 class DataRegionList;
 class DisasmHandle;
+class ElfMap;
 class Function;
 class InitFunctionList;
 class PLTList;
@@ -17,7 +18,8 @@ class SymbolList;
 
 /** Highest-level gtirb deserialization for a given gtirb file.
 */
-class GtirbDeserializer {
+class GtirbDeserializer
+{
 public:
     GtirbDeserializer(std::string filename);
     ~GtirbDeserializer();
@@ -32,12 +34,14 @@ public:
     std::string getFilename() { return this->filename; }
 
 private:
-    SymbolList *buildSymbolList(gtirb::Module& module);
+    ElfMap *buildElfMap(const gtirb::Module &module);
+    SymbolList *buildSymbolList(const gtirb::Module &module);
     Function *buildFunction(gtirb::UUID sym_uuid, const std::set<gtirb::UUID> &entries, const std::set<gtirb::UUID> &blocks);
     InitFunctionList *buildInitFunctionList();
     InitFunctionList *buildFiniFunctionList();
     DataRegionList *buildDataRegionList();
     PLTList *buildPLTList();
+    bool isLoadableGtirbModule(const gtirb::Module &module);
 
     std::string filename;
     std::unique_ptr<gtirb::Context> C;
@@ -46,4 +50,3 @@ private:
 };
 
 #endif
-

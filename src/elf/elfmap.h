@@ -8,6 +8,8 @@
 #include <elf.h>
 #include "elfxx.h"
 
+#include <memory>
+
 class ELFGen;
 class ElfSection {
 private:
@@ -35,18 +37,23 @@ public:
 
 class ElfMap {
     friend class ELFGen;
+    friend class MapFromMMap;
+    friend class MapFromUnownedVoidStar;
+    friend class MapFromOwnedByteVector;
 private:
-    /** Memory map of executable image.
-    */
-    void *map;
 
-    /** Size of memory map.
-    */
-    size_t length;
+    class MapBase {
+        public:
+        virtual ~MapBase() {}
+        virtual void *raw_bytes() = 0;
+        virtual size_t get_length() = 0;
+        virtual int get_fd() = 0;
+    };
 
-    /** File descriptor associated with memory map.
+    /** The bytes of the executable image.
     */
-    int fd;
+    std::unique_ptr<MapBase> map;
+
 private:
     const char *shstrtab;
     const char *strtab;
@@ -65,12 +72,12 @@ public:
     ElfMap(pid_t pid);
     ElfMap(const char *filename);
     ElfMap(void *self);
+    ElfMap(std::vector<std::byte> &&map);
     ~ElfMap();
     static bool isElf(const char *filename);
 private:
     void setup();
-    void parseElf(const char *filename);
-    void verifyElf();
+    static void verifyElf(const std::unique_ptr<MapBase> &map);
     void makeSectionMap();
     void makeSegmentList();
     void makeVirtualAddresses();
@@ -79,7 +86,7 @@ public:
     address_t getBaseAddress() const { return baseAddress; }
     address_t getCopyBaseAddress() const { return copyBase; }
     address_t getRWCopyBaseAddress() const { return rwCopyBase; }
-    size_t getLength() const { return length; }
+    size_t getLength() const { return map->get_length(); }
     const char *getStrtab() const { return strtab; }
     const char *getDynstrtab() const { return dynstr; }
     const char *getSHStrtab() const { return shstrtab; }
@@ -106,9 +113,9 @@ public:
     bool isDynamic() const;
     bool hasRelocations() const;
 
-    char *getCharmap() { return static_cast<char *>(map); }
-    void *getMap() { return map; }
-    int getFileDescriptor() const { return fd; }
+    char *getCharmap() { return static_cast<char *>(map->raw_bytes()); }
+    void *getMap() { return map->raw_bytes(); }
+    int getFileDescriptor() const { return map->get_fd(); }
     const std::vector<void *> &getSegmentList() const
         { return segmentList; }
     const std::vector<ElfSection *> &getSectionList() const

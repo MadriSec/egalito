@@ -44,6 +44,8 @@ public:
     RelocList *getRelocList() const { return relocList; }
     DwarfUnwindInfo *getDwarfInfo() const { return dwarf; }
 
+    void setSymbolList(SymbolList *list) { symbolList = list; }
+
     FunctionAliasMap *getAliasMap() const { return aliasMap; }
     void setAliasMap(FunctionAliasMap *aliasMap) { this->aliasMap = aliasMap; }
 private:

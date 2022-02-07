@@ -9,6 +9,7 @@
 #include "chunk/program.h"
 #include "disasm/disassemble.h"
 #include "disasm/handle.h"
+#include "elf/elfspace.h"
 #include "elf/symbol.h"
 #include "gtirb/gtirb.hpp"
 #include "log/log.h"
@@ -100,7 +101,194 @@ Symbol::BindingType convertGtirbBindingType(std::string gtirb_bind_type)
     }
 }
 
-SymbolList *GtirbDeserializer::buildSymbolList(gtirb::Module &module)
+static size_t gtirb_isa_to_machine(gtirb::ISA isa)
+{
+    switch (isa)
+    {
+    case gtirb::ISA::X64:
+        return EM_X86_64;
+    case gtirb::ISA::ARM:
+        return EM_ARM;
+    default:
+    {
+        assert(false && "Unsupported ISA");
+        return EM_NONE;
+    }
+    }
+}
+
+static void copySectionBytes(std::byte *dest, const gtirb::Section &section)
+{
+    auto maybe_sec_addr = section.getAddress();
+    assert(maybe_sec_addr && "All ByteIntervals must have addresses!");
+    size_t sec_addr = size_t(*maybe_sec_addr);
+
+    // Note: this assumes that the ByteIntervals have non-overlapping ranges.
+    for (auto it = section.byte_intervals_begin(); it != section.byte_intervals_end(); ++it)
+    {
+        auto maybe_bi_addr = it->getAddress();
+        assert(maybe_bi_addr && "All ByteIntervals must have addresses!");
+        size_t bi_addr = size_t(*maybe_bi_addr);
+
+        memcpy(dest + (bi_addr - sec_addr), it->rawBytes<std::byte>(), it->getInitializedSize());
+    }
+}
+
+static const std::string shstrtab_name = ".shstrtab";
+
+ElfMap *GtirbDeserializer::buildElfMap(const gtirb::Module &module)
+{
+    // We don't have the actual ELF file. This attempts to re-construct enough of one
+    // that Egalito is happy with its contents and can get what it needs.
+
+    // First determine size needed and where everything needs to go.
+
+    // Program header table. GTIRB doesn't have this info. For now
+    // we'll try to get by w/ having no segments.
+    // It should start right after the main header.
+    size_t phdr_offset = sizeof(ElfXX_Ehdr);
+    size_t phdr_entry_size = sizeof(ElfXX_Phdr);
+    size_t phdr_num = 0;
+    size_t phdr_size = phdr_entry_size * phdr_num;
+
+    // Where sections begin
+    size_t secs_offset = phdr_offset + phdr_size;
+    size_t num_sections = 0; // Not including shstrtab!
+    size_t tot_section_bytes = 0;
+    std::optional<size_t> shstrtab_idx;
+    size_t shstrtab_size = 1; // Inlcudes a start null byte.
+    size_t curr_idx = 0;
+    for (auto it = module.sections_begin(); it != module.sections_end(); ++curr_idx, ++it)
+    {
+        // Ignore any .shstrtab section. We're going to rebuild
+        // our own no matter what.
+        if (it->getName() == shstrtab_name)
+        {
+            continue;
+        }
+
+        ++num_sections;
+        auto maybe_size = it->getSize();
+        assert(maybe_size && "Should only reach here if isLoadableGtirbModule() has confirmed all sections have a size.");
+        tot_section_bytes += *maybe_size;
+        shstrtab_size += it->getName().length() + 1;
+    }
+
+    // .shstrtab section
+    shstrtab_size += shstrtab_name.length() + 1;
+    size_t shstrtab_offset = secs_offset + tot_section_bytes;
+
+    // Section header table.
+    size_t shdr_offset = shstrtab_offset + shstrtab_size;
+    size_t shdr_entry_size = sizeof(ElfXX_Shdr);
+    size_t shdr_size = shdr_entry_size * (num_sections + 1);
+
+    // Full sized, zero-initialized chunk of memory.
+    size_t map_size = sizeof(ElfXX_Ehdr) + phdr_size + tot_section_bytes + shstrtab_size + shdr_size;
+    std::vector<std::byte> bytes(map_size);
+
+    // Main ELF Header
+    gtirb::ISA isa = module.getISA();
+    ElfXX_Ehdr header;
+    header.e_ident[EI_MAG0] = ELFMAG0;
+    header.e_ident[EI_MAG1] = ELFMAG1;
+    header.e_ident[EI_MAG2] = ELFMAG2;
+    header.e_ident[EI_MAG3] = ELFMAG3;
+    header.e_ident[EI_CLASS] = ELFCLASSXX;
+    header.e_ident[EI_DATA] = ELFDATA2LSB; // TODO: Account for endianness
+    header.e_ident[EI_VERSION] = EV_CURRENT;
+    header.e_ident[EI_OSABI] = ELFOSABI_NONE;
+    header.e_ident[EI_ABIVERSION] = 0;
+    header.e_type = ELFCLASSXX;
+    header.e_machine = gtirb_isa_to_machine(isa);
+    header.e_version = EV_CURRENT;
+
+    const gtirb::CodeBlock *entry = module.getEntryPoint();
+    if (entry)
+    {
+        auto maybe_addr = entry->getAddress();
+        assert(maybe_addr && "All ByteIntervals should have addresses!");
+        header.e_entry = ElfXX_Addr(*maybe_addr);
+    }
+    else
+    {
+        header.e_entry = 0;
+    }
+
+    header.e_phoff = phdr_offset;
+    header.e_shoff = shdr_offset;
+    header.e_flags = 0; // Unnecessary for our purposes?
+    header.e_ehsize = sizeof(ElfXX_Ehdr);
+    header.e_phentsize = phdr_entry_size;
+    header.e_phnum = phdr_num;
+    header.e_shentsize = shdr_entry_size;
+    header.e_shnum = num_sections + 1;
+    header.e_shstrndx = num_sections;
+
+    memcpy(bytes.data(), &header, sizeof(ElfXX_Ehdr));
+
+    // Assumes iteration order is the same as the iteration above.
+    curr_idx = 0;
+    size_t curr_offset = secs_offset;
+    size_t curr_shstrtab_offset = shstrtab_offset + 1; // Index 0 should already be 0
+    for (auto it = module.sections_begin(); it != module.sections_end(); ++curr_idx, ++it)
+    {
+        if (it->getName() == ".shstrtab")
+        {
+            continue;
+        }
+
+        ElfXX_Shdr shdr;
+        shdr.sh_name = curr_shstrtab_offset;
+        shdr.sh_type = 0;  // TODO!
+        shdr.sh_flags = 0; // TODO!
+
+        auto maybe_addr = it->getAddress();
+        assert(maybe_addr && "All ByteIntervals should have addresses!");
+        shdr.sh_addr = ElfXX_Addr(*maybe_addr);
+
+        shdr.sh_offset = curr_offset;
+
+        auto maybe_size = it->getSize();
+        assert(maybe_size && "Should only reach here if isLoadableGtirbModule() has confirmed all sections have a size.");
+        shdr.sh_size = *maybe_size;
+
+        shdr.sh_link = 0;      // Don't care.
+        shdr.sh_info = 0;      // Don't care.
+        shdr.sh_addralign = 0; // Don't care?
+        shdr.sh_entsize = 0;   // Don't care?
+
+        memcpy(bytes.data() + shdr_offset + curr_idx * shdr_entry_size, &shdr, sizeof(ElfXX_Shdr));
+        copySectionBytes(bytes.data() + curr_offset, *it);
+
+        size_t sec_name_length = it->getName().length() + 1;
+        memcpy(bytes.data() + curr_shstrtab_offset, it->getName().c_str(), sec_name_length);
+
+        curr_offset += *maybe_size;
+        curr_shstrtab_offset += sec_name_length;
+    }
+    assert(curr_offset == shstrtab_offset);
+
+    // Section header for shstrtab
+    ElfXX_Shdr shdr;
+    shdr.sh_name = curr_shstrtab_offset;
+    shdr.sh_type = SHT_STRTAB;
+    shdr.sh_flags = 0;
+    shdr.sh_addr = 0;
+    shdr.sh_offset = shstrtab_offset;
+    shdr.sh_size = shstrtab_size;
+    shdr.sh_link = 0;      // Don't care.
+    shdr.sh_info = 0;      // Don't care.
+    shdr.sh_addralign = 0; // Don't care.
+    shdr.sh_entsize = 0;   // Don't care.
+
+    memcpy(bytes.data() + shstrtab_offset, &shdr, sizeof(ElfXX_Shdr));
+    memcpy(bytes.data() + curr_shstrtab_offset, shstrtab_name.c_str(), shstrtab_name.length() + 1);
+
+    return new ElfMap(std::move(bytes));
+}
+
+SymbolList *GtirbDeserializer::buildSymbolList(const gtirb::Module &module)
 {
     // TODO: The constructor for SymbolList optionally takes an ElfMap.
     // Do we need/want to provide one?
@@ -255,11 +443,13 @@ Function *GtirbDeserializer::buildFunction(gtirb::UUID sym_uuid, const std::set<
     return function;
 }
 
-InitFunctionList *GtirbDeserializer::buildInitFunctionList() {
+InitFunctionList *GtirbDeserializer::buildInitFunctionList()
+{
     return new InitFunctionList();
 }
 
-InitFunctionList *GtirbDeserializer::buildFiniFunctionList() {
+InitFunctionList *GtirbDeserializer::buildFiniFunctionList()
+{
     return new InitFunctionList();
 }
 
@@ -271,6 +461,22 @@ DataRegionList *GtirbDeserializer::buildDataRegionList()
 PLTList *GtirbDeserializer::buildPLTList()
 {
     return new PLTList();
+}
+
+bool GtirbDeserializer::isLoadableGtirbModule(const gtirb::Module &module)
+{
+    // Do we have addresses on all ByteIntervals. Can be checked
+    // just by checking for having a size on all Sections.
+    for (auto it = module.sections_begin(); it != module.sections_end(); ++it)
+    {
+        if (!it->getSize())
+        {
+            LOG(1, "GTIRB Module contains ByteIntervals without addresses (required by Egalito import.)");
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /** Returns the root of the deserialized tree. */
@@ -298,11 +504,20 @@ Program *GtirbDeserializer::deserialize()
         LOG(1, "GTIRB IR has no modules: " << this->filename);
         return nullptr;
     }
+    gtirb::Module &gtirb_module = *this->ir->modules_begin();
+
+    // Check that the IR is something we support loading
+    // Note that we require certain things like having addresses
+    // attached to all ByteIntervals.
+    if (!isLoadableGtirbModule(gtirb_module))
+    {
+        LOG(1, "GTIRB IR not supported by Egalito: " << this->filename);
+        return nullptr;
+    }
 
     Program *program = new Program();
-    program->setLibraryList(new LibraryList());
-
-    gtirb::Module &gtirb_module = *this->ir->modules_begin();
+    LibraryList *lib_list = new LibraryList();
+    program->setLibraryList(lib_list);
 
     // Initialize our capstone engine handle for this ir.
     gtirb::ISA isa = gtirb_module.getISA();
@@ -343,11 +558,9 @@ Program *GtirbDeserializer::deserialize()
     }
 
     // Create a Library for the module
-    auto library = new Library("(executable)", Library::ROLE_MAIN);
+    auto library = new Library(gtirb_module.getName(), Library::ROLE_MAIN);
     library->setResolvedPath(gtirb_module.getBinaryPath());
     program->add(library);
-
-    // TODO: Load the bytes?
 
     // Create the Module
     Module *eg_module = new Module();
@@ -355,13 +568,24 @@ Program *GtirbDeserializer::deserialize()
     program->add(eg_module);
     eg_module->setParent(program);
     eg_module->setLibrary(library);
+    library->setModule(eg_module);
     FunctionList *functionList = new FunctionList();
     eg_module->getChildren()->add(functionList);
     eg_module->setFunctionList(functionList);
     functionList->setParent(eg_module);
 
+    // Create a stand-in for the original ELF file and build the elfmap.
+    ElfMap *elf_map = buildElfMap(gtirb_module);
+
+    // Create an elfspace for the module
+    // Question: how much does it need to be populated?
+    ElfSpace *elf_space = new ElfSpace(elf_map, gtirb_module.getName(), gtirb_module.getBinaryPath());
+    eg_module->setElfSpace(elf_space);
+    elf_space->setModule(eg_module);
+
     // Build the list of symbols
     SymbolList *sym_list = buildSymbolList(gtirb_module);
+    elf_space->setSymbolList(sym_list);
 
     // Add functions
     auto func_names = gtirb_module.getAuxData<gtirb::schema::FunctionNames>();
