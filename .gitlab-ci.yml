@@ -202,3 +202,14 @@ sast:
       - gl-sast-report.json
       - sast-report.html
     expire_in: '1 day'
+
+pages:
+  image: $UBUNTU18_IMAGE
+  needs: []
+  script:
+    - apt update && apt install -y doxygen clang graphviz
+    - doxygen Doxyfile
+    - mv doc_html/html public
+  artifacts:
+    paths:
+      - public
