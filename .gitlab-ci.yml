@@ -165,6 +165,7 @@ package-ubuntu18:
     - apt update && apt install -y cmake
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin
+    - cpack -G DEB -d CPACK_EGALITO_PACKAGE=dev
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static
 
 test-package-ubuntu18:
