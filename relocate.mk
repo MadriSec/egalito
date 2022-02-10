@@ -10,12 +10,16 @@ static_libs=src/libegalito.a
 
 all: relocate
 
-relocate: relocate-lib relocate-bin relocate-dep
+relocate: relocate-lib relocate-bin relocate-dep relocate-dev
 relocate-bin:
 	install -m0755 -D -t ./build/bin ${binaries}
 
 relocate-lib:
 	install -m0644 -D -t ./build/lib ${libs}
+
+relocate-dev:
+	mkdir -p ./build/include
+	cd src && cp --parents */*.h ../build/include/
 
 relocate-dep: 
 	install -m0644 -D -t ./build/lib ${deps}
