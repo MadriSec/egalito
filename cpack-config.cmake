@@ -31,7 +31,7 @@ elseif(CPACK_EGALITO_PACKAGE STREQUAL "static")
   set(CPACK_INSTALLED_DIRECTORIES ${EGALITO_STATIC_DIR} "usr/lib")
   set(CPACK_PACKAGE_NAME "libegalito-static")
 else()
-  message("Please set CPACK_EGALITO_PACKAGE to: 'lib', 'bin', or 'static'")
+  message("Please set CPACK_EGALITO_PACKAGE to: 'lib', 'bin', 'dev' or 'static'")
   return()
 endif()
 
