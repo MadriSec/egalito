@@ -20,6 +20,7 @@ relocate-lib:
 relocate-dev:
 	mkdir -p ./build/include
 	cd src && cp --parents */*.h ../build/include/
+	cp src/config.h build/include/
 
 relocate-dep: 
 	install -m0644 -D -t ./build/lib ${deps}
