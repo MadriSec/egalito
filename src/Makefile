@@ -99,11 +99,11 @@ release: all
 
 $(BUILDDIR)load/emulator.o $(BUILDDIR)transform/data.o: | $(GEN_TIMESTAMP)
 $(ALL_OBJECTS): | $(BUILDTREE)
-$(BUILDTREE): ../config/config.h
+$(BUILDTREE): ./config/config.h
 	@mkdir -p $@
 
-../config/config.h:
-	$(call short-make,../config)
+./config/config.h:
+	$(call short-make, config)
 
 .symlinks: $(OUTPUTS)
 	@touch $@

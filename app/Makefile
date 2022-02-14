@@ -103,11 +103,11 @@ python: $(BUILDTREE) $(PYTHON_BINDING) $(PYSHELL)
 	@ln -sf $(PYSHELL)
 
 $(ALL_OBJECTS): | $(BUILDTREE)
-$(BUILDTREE): ../config/config.h
+$(BUILDTREE): ../src/config/config.h
 	@mkdir -p $@
 
-../config/config.h:
-	$(call short-make,../config)
+../src/config/config.h:
+	$(call short-make,../src/config)
 
 .symlinks: $(OUTPUTS)
 	@touch .symlinks
