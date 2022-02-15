@@ -437,23 +437,28 @@ public:
         }
 
         /**
-         * @brief Fetch the symbol associated with the destination name if it
+         * @brief Fetches the symbol associated with the given name if it
          * exists
          *
+         * @param sym_name The name of the symbol to search for
+         * @param sym_addr The address of the symbol to search for
          * @param module The module in which the gtirb symbol would reside
          * @return gtirb::Symbol* A symbol with the name of the link's
          * destination (or nullptr)
          */
-        gtirb::Symbol *symbol_from_name(gtirb::Module *module) {
-            if (!dst_name) return nullptr;
+        static gtirb::Symbol *symbol_from_name(
+            std::optional<std::string> sym_name,
+            std::optional<address_t> sym_addr, gtirb::Module *module) {
+            if (!sym_name) return nullptr;
 
-            for (gtirb::Symbol &symbol : module->findSymbols(*dst_name)) {
-                if (dst_addr &&
-                    (*symbol.getAddress() != gtirb::Addr(*dst_addr))) {
+            for (gtirb::Symbol &symbol : module->findSymbols(*sym_name)) {
+                if (sym_addr &&
+                    (*symbol.getAddress() != gtirb::Addr(*sym_addr))) {
                     // TODO: Until/unless PLT trampolines are resolved,
                     // this happens every time there is a link to a plt
                     // reference
-                    std::cerr << "WARNING: Mismatched addresses. " << label();
+                    std::cerr << "WARNING: Mismatched addresses. "
+                              << label(sym_addr, sym_name);
                     std::cerr << " points to 0x" << symbol.getAddress() << "\n";
                 }
                 return &symbol;
@@ -465,16 +470,21 @@ public:
          * @brief Fetches the symbol associated with the given address if it
          * exists
          *
+         * @param sym_addr The address of the symbol to search for
+         * @param sym_name The name of the symbol to search for
          * @param module The module in which the gtirb symbol would reside
          * @return gtirb::Symbol *A symbol with the address of the link's
          * destination (or nullptr)
          */
-        gtirb::Symbol *symbol_from_addr(address_t sym_address,
+        static gtirb::Symbol *symbol_from_addr(
+            std::optional<address_t> sym_addr,
             std::optional<std::string> sym_name, gtirb::Module *module) {
-            gtirb::Addr gAddr(sym_address);
+            if (!sym_addr) return nullptr;
+            gtirb::Addr gAddr(*sym_addr);
             for (gtirb::Symbol &symbol : module->findSymbols(gAddr)) {
                 if (sym_name and symbol.getName() != *sym_name) {
-                    LOG(10, "Mismatched names in " << label() << " (points to "
+                    LOG(10, "Mismatched names in " << label(sym_addr, sym_name)
+                                                   << " (points to "
                                                    << symbol.getName() << ")");
                 }
                 return &symbol;
@@ -483,46 +493,44 @@ public:
         }
 
         /**
-         * @brief Fetches the symbol associated with the destination address if
-         * it exists
+         * @brief Create a gtirb symbol with the name and address matching
+         * the link's destination
          *
-         * @param module The module in which the gtirb symbol would reside
-         * @return gtirb::Symbol *A symbol with the address of the link's
-         * destination (or nullptr)
-         */
-        gtirb::Symbol *dest_from_addr(gtirb::Module *module) {
-            if (!dst_addr) return nullptr;
-            return symbol_from_addr(*dst_addr, dst_name, module);
-        }
-
-        /**
-         * @brief Fetches the symbol associated with the destination base
-         * address if it exists
-         *
-         * @param module The module in which the gtirb symbol would reside
-         * @return gtirb::Symbol *A symbol with the address of the link's
-         * destination (or nullptr)
-         */
-        gtirb::Symbol *base_from_addr(gtirb::Module *module) {
-            if (!base_dst_addr) return nullptr;
-            return symbol_from_addr(*base_dst_addr, base_dst_name, module);
-        }
-
-        /**
-         * @brief Create a gtirb symbol with the name or address matching the
-         * link's destination
-         *
+         * @param sym_addr The address of the symbol to create
+         * @param sym_name The name of the symbol to create
          * @param C The gtrib context in which the symbol is to be created
          * @param module The module where the symbol will be added
          * @return gtirb::Symbol* The newly created gtirb symbol
          */
-        gtirb::Symbol *create_dst_symbol(
-            gtirb::Context &C, gtirb::Module *module) {
-            if (!dst_addr) {
-                return module->addSymbol(C, *dst_name);
+        static gtirb::Symbol *create_symbol(std::optional<address_t> sym_addr,
+            std::optional<std::string> sym_name, gtirb::Context &C,
+            gtirb::Module *module) {
+            if (!sym_name) {
+                return nullptr;
             }
-            return module->addSymbol(
-                C, gtirb::Addr(*dst_addr), symAddrName(*dst_addr));
+            LOG(10, "Creating symbol for " << label(sym_addr, sym_name));
+            if (sym_addr) {
+                return module->addSymbol(
+                    C, gtirb::Addr(*sym_addr), symAddrName(*sym_addr));
+            }
+            return module->addSymbol(C, *sym_name);
+        }
+
+        /**
+         * @brief Generate a label (used only for debugging) for a symbolic
+         * reference
+         */
+        static std::string label(std::optional<address_t> sym_addr,
+            std::optional<std::string> sym_name) {
+            std::stringstream ss;
+            std::string name_string = sym_name ? *sym_name : "<UNKNOWN NAME>";
+
+            if (sym_addr)
+                ss << "0x" << *sym_addr;
+            else
+                ss << "<UNKNOWN ADDR>";
+            ss << " (" << name_string << ")";
+            return ss.str();
         }
 
         /**
@@ -531,20 +539,9 @@ public:
          */
         std::string label() {
             std::stringstream ss;
-            ss << "0x" << std::hex << src_addr << " ("
-               << (src_name ? *src_name : "<UNKNOWN NAME>") << ") -> ";
-
-            if (dst_addr)
-                ss << "0x" << *dst_addr;
-            else
-                ss << "<UNKNOWN ADDR>";
-            ss << " (" << (dst_name ? *dst_name : symAddrName(*dst_addr))
-               << ")";
-
-            if (base_dst_addr) ss << "0x" << *base_dst_addr;
-            ss << " ("
-               << (base_dst_name ? *base_dst_name : symAddrName(*base_dst_addr))
-               << ")";
+            ss << label(src_addr, src_name) << " -> [";
+            ss << label(dst_addr, dst_name) << ", ";
+            ss << label(base_dst_addr, base_dst_name) << "]";
             return ss.str();
         }
     };
@@ -556,6 +553,74 @@ public:
     // If the block is already created this maps the address to the size of the
     // block Otherwise, it maps the address to a block of size 0
     std::map<address_t, size_t> block_addrs;
+
+    /**
+     * @brief Get the symbol associated with the given name/address if it
+     * exists. Create a new symbol if necessary.
+     *
+     * @param sym_addr The address of the symbol to search for
+     * @param sym_name The name of the symbol to search for
+     * @param module The module in which the gtirb symbol would reside
+     * @return gtirb::Symbol *A symbol with the address or name provided
+     */
+    gtirb::Symbol *get_symbol_from_link(std::optional<address_t> sym_addr,
+        std::optional<std::string> sym_name, gtirb::Module *module) {
+        // If there is a symbol with a matching name, use it even if the
+        // address is wrong
+        gtirb::Symbol *sym_out = LinkInfo::symbol_from_name(
+            sym_name, sym_addr, module);
+        // If there is no name, but there is an address, use the existing
+        // symbol if it matches
+        if (!sym_out) {
+            sym_out = LinkInfo::symbol_from_addr(sym_addr, sym_name, module);
+        }
+        // Otherwise, create the symbol if necessary
+        if (!sym_out) {
+            sym_out = LinkInfo::create_symbol(sym_addr, sym_name, C, module);
+            if ((sym_out) && (sym_out->getAddress())) {
+                // If the symbol points to an address,
+                // we will later ensure that a code/data block starts on
+                // that address.
+                // (Insert has no effect if the key is already mapped)
+                block_addrs.insert({address_t(*sym_out->getAddress()), 0});
+            }
+            else {
+                LOG(0, "NO ADDRESS ON CREATED SYBMOL");
+            }
+        }
+        else {
+            log_chunk("    synthetic: false");
+        }
+        return sym_out;
+    }
+
+    /**
+     * @brief Get a gtirb symbol associated with the given link's destination.
+     *
+     * @param link LinkInfo used to obtain the symbol
+     * @param module The module in which the gtirb symbol would reside
+     * @return gtirb::Symbol *A symbol with the address of the link's
+     * destination (or nullptr)
+     */
+    gtirb::Symbol *get_dst_from_link(LinkInfo &link, gtirb::Module *gModule) {
+        return get_symbol_from_link(link.dst_addr, link.dst_name, gModule);
+    }
+
+    /**
+     * @brief Get a gtirb symbol associated with the given link's base
+     * destination.
+     * @details Used for symbolic references of the form [(Sym1 - Sym2) / Scale
+     * + Offset].
+     *
+     * @param link LinkInfo used to obtain the symbol
+     * @param module The module in which the gtirb symbol would reside
+     * @return gtirb::Symbol *A symbol with the address of the link's
+     * base destination (or nullptr)
+     */
+    gtirb::Symbol *get_base_from_link(LinkInfo &link, gtirb::Module *gModule) {
+        return get_symbol_from_link(
+            link.base_dst_addr, link.base_dst_name, gModule);
+    }
 
     void visit(Program *eProgram) {
         eCtx.program = eProgram;
@@ -636,34 +701,11 @@ public:
         // add information about the symbolic references witin the code/data
         // blocks
         for (LinkInfo &linkInfo : links) {
-            // If there is a symbol with a matching name, use it even if the
-            // address is wrong
-            gtirb::Symbol *dst = linkInfo.symbol_from_name(gModule);
-            // If there is no name, but there is an address, use the existing
-            // symbol if it matches
+            auto dst = get_dst_from_link(linkInfo, gModule);
             if (!dst) {
-                dst = linkInfo.dest_from_addr(gModule);
+                continue;
             }
-            // Otherwise, create the destination symbol if necessary
-            if (!dst) {
-                LOG(10, "Creating dest symbol for " << linkInfo.label());
-                dst = linkInfo.create_dst_symbol(C, gModule);
-                if (dst->getAddress()) {
-                    // If the destination symbol points to an address,
-                    // we will later ensure that a code/data block starts on
-                    // that address.
-                    // (Insert has no effect if the key is already mapped)
-                    block_addrs.insert({address_t(*dst->getAddress()), 0});
-                }
-                else {
-                    LOG(0, "NO ADDRESS ON CREATED SYBMOL");
-                    continue;
-                }
-            }
-            else {
-                log_chunk("    synthetic: false");
-            }
-
+            auto base = get_base_from_link(linkInfo, gModule);
             auto byteIntervals = gModule->findByteIntervalsOn(
                 gtirb::Addr(linkInfo.src_addr));
             auto interval = byteIntervals.begin();
@@ -672,8 +714,7 @@ public:
             assert(std::next(interval) == byteIntervals.end());
             auto offset = gtirb::Addr(linkInfo.src_addr) -
                           *interval->getAddress();
-            if (linkInfo.base_dst_addr) {
-                auto base = linkInfo.base_from_addr(gModule);
+            if (base) {
                 interval->addSymbolicExpression<gtirb::SymAddrAddr>(
                     offset, linkInfo.dst_scale, linkInfo.dst_offset, dst, base);
             }
