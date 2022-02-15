@@ -1,3 +1,5 @@
+include env.mk
+
 binaries=app/etshell app/etcoverage app/etharden app/etobjdump\
   app/etorder app/etprofile app/etsandbox app/ettwocode app/etelf
 libs=src/libegalito.so src/libaddon.so \
@@ -9,8 +11,10 @@ headers=analysis archive break chunk conductor debug\
   disasm dwarf elf generate gtirb instr load log operation\
   pass runtime snippet transform util
 header_files := $(foreach dir,$(headers),$(wildcard src/$(dir)/*.h))
-header_files += src/config/config.h
+header_files += src/config/config.h 
 new_headers := $(foreach f,$(header_files),build/include/$(f))
+PKGCFGDIR := build/pkgconfig
+PKGCFGFILE := ${PKGCFGDIR}/egalito.pc
 .PHONY: all relocate clean
 
 all: relocate
@@ -22,12 +26,18 @@ relocate-bin: ${binaries}
 relocate-lib: ${libs}
 	install -m0644 -D -t ./build/lib $^
 
-relocate-dev: ${new_headers}
+relocate-dev: ${new_headers} $(PKGCFGFILE)
 	@echo "Copying header files"
-
+	
 build/include/%.h: %.h
 	@mkdir -p build/include
 	@cp --parents $< build/include
+
+${PKGCFGFILE}: egalito.pc.in | ${PKGCFGDIR}
+	$(file >$@,$(subst -CFLAGS,$(filter -D%,$(CFLAGS)),$(file <$<)))
+
+${PKGCFGDIR}:
+	mkdir -p $@
 
 relocate-dep: 
 	install -m0644 -D -t ./build/lib ${deps}

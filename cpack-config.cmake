@@ -1,26 +1,32 @@
-execute_process(
-    COMMAND "make -f relocate.mk"
-    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-)
-
 set(EGALITO_BUILD_DIR ${CMAKE_CURRENT_LIST_DIR}/build)
 set(EGALITO_BINARY_DIR ${EGALITO_BUILD_DIR}/bin)
 set(EGALITO_LIBRARY_DIR ${EGALITO_BUILD_DIR}/lib)
 set(EGALITO_STATIC_DIR ${EGALITO_BUILD_DIR}/static)
-set(EGALITO_HEADER_DIR ${EGALITO_BUILD_DIR}/include)
+set(EGALITO_HEADER_DIR ${EGALITO_BUILD_DIR}/include/src)
+set(EGALITO_PKGCFG_DIR ${EGALITO_BUILD_DIR}/pkgconfig)
+
+set(CAPSTONE_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/dep/capstone/install)
 
 if(CPACK_EGALITO_PACKAGE STREQUAL  "lib")
   #debian
-  set(CPACK_INSTALLED_DIRECTORIES ${EGALITO_LIBRARY_DIR} "usr/lib" "${EGALITO_DEP_DIR}/libegalito.so" "usr/lib")
+  set(CPACK_INSTALLED_DIRECTORIES 
+    ${EGALITO_LIBRARY_DIR} "usr/lib/egalito" 
+    "${EGALITO_DEP_DIR}/libegalito.so" "usr/lib/egalito"
+    "${CAPSTONE_ROOT_DIR}/lib" "usr/lib/egalito/capstone"
+    )
   set(CPACK_PACKAGE_NAME "libegalito")
   set(CPACK_DEBIAN_PACKAGE_DEPENDS 
     "libc6")
-  set(CPACK_DEBIAN_PACKAGE_CONFLICTS "libcapstone-dev")
   #rpm: todo
 elseif(CPACK_EGALITO_PACKAGE STREQUAL "dev")
-  set(CPACK_INSTALLED_DIRECTORIES ${EGALITO_HEADER_DIR} "usr/include/egalito")
+  set(CPACK_INSTALLED_DIRECTORIES 
+    ${EGALITO_HEADER_DIR} "usr/include/egalito"
+    ${EGALITO_PKGCFG_DIR} "usr/lib/pkgconfig"
+    "${CAPSTONE_ROOT_DIR}/include/capstone" "usr/include/egalito/capstone"
+    )
   set(CPACK_PACKAGE_NAME "libegalito-dev")
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "libegalito (=${CPACK_PACKAGE_VERSION})")
+  #TODO: GET CAPSTONE VERSION PROGRAMATICALLY
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "libegalito (=${CPACK_PACKAGE_VERSION})") 
 elseif(CPACK_EGALITO_PACKAGE STREQUAL "bin") 
   set(CPACK_INSTALLED_DIRECTORIES ${EGALITO_BINARY_DIR} "usr/bin")
   set(CPACK_PACKAGE_NAME "egalito")
@@ -31,7 +37,7 @@ elseif(CPACK_EGALITO_PACKAGE STREQUAL "static")
   set(CPACK_INSTALLED_DIRECTORIES ${EGALITO_STATIC_DIR} "usr/lib")
   set(CPACK_PACKAGE_NAME "libegalito-static")
 else()
-  message("Please set CPACK_EGALITO_PACKAGE to: 'lib', 'bin', 'dev' or 'static'")
+  message("Unknown value for CPACK_EGALITO_PACKAGE")
   return()
 endif()
 
