@@ -200,6 +200,7 @@ public:
         Function *function;
         DataRegion *region;
         DataSection *section;
+        JumpTable *jtable;
     } eCtx;
 
     struct {
@@ -321,9 +322,23 @@ public:
         std::optional<address_t> dst_addr = std::nullopt;
         /// \brief The name of the symbol that a link refers to
         std::optional<std::string> dst_name = std::nullopt;
+
+        /// \brief The address of the base symbol that a link refers to
+        /// \details Required for symbolic references of the form [(Sym1 - Sym2)
+        /// / Scale + Offset].
+        std::optional<address_t> base_dst_addr = std::nullopt;
+        /// \brief The name of the base symbol that a link refers to
+        /// \details Required for symbolic references of the form [(Sym1 - Sym2)
+        /// / Scale + Offset].
+        std::optional<std::string> base_dst_name = std::nullopt;
+
         /// If a 'sym + offset' type link, stores the offset from the target
         /// symbol
         size_t dst_offset = 0;
+
+        /// If a [(Sym1 - Sym2) / Scale + Offset] type link, stores the scale
+        /// from the target symbol
+        size_t dst_scale = 1;
 
         /// \brief The (gtirb) attributes of the symbolic reference
         gtirb::SymAttributeSet attrs{};
@@ -343,6 +358,13 @@ public:
               src_name(src_name),
               dst_addr(dst_addr),
               dst_name(dst_name) {}
+
+        LinkInfo(address_t src_addr, std::optional<std::string> src_name,
+            address_t dst_addr, address_t base_dst_addr)
+            : src_addr(src_addr),
+              src_name(src_name),
+              dst_addr(dst_addr),
+              base_dst_addr(base_dst_addr) {}
 
         static LinkInfo from_link(address_t src_addr, Link *link,
             std::optional<std::string> src_name = std::nullopt) {
@@ -394,6 +416,17 @@ public:
             return li;
         }
 
+        static LinkInfo from_link(address_t src_addr, Link *link,
+            address_t base_address,
+            std::optional<std::string> src_name = std::nullopt) {
+            LinkInfo li(
+                src_addr, src_name, link->getTargetAddress(), base_address);
+            if (auto *target = link->getTarget()) {
+                li.dst_name = target->getName();
+            }
+            return li;
+        }
+
         /**
          * @brief Generate a name based on the destination symbol's address
          */
@@ -429,6 +462,27 @@ public:
         }
 
         /**
+         * @brief Fetches the symbol associated with the given address if it
+         * exists
+         *
+         * @param module The module in which the gtirb symbol would reside
+         * @return gtirb::Symbol *A symbol with the address of the link's
+         * destination (or nullptr)
+         */
+        gtirb::Symbol *symbol_from_addr(address_t sym_address,
+            std::optional<std::string> sym_name, gtirb::Module *module) {
+            gtirb::Addr gAddr(sym_address);
+            for (gtirb::Symbol &symbol : module->findSymbols(gAddr)) {
+                if (sym_name and symbol.getName() != *sym_name) {
+                    LOG(10, "Mismatched names in " << label() << " (points to "
+                                                   << symbol.getName() << ")");
+                }
+                return &symbol;
+            }
+            return nullptr;
+        }
+
+        /**
          * @brief Fetches the symbol associated with the destination address if
          * it exists
          *
@@ -436,17 +490,22 @@ public:
          * @return gtirb::Symbol *A symbol with the address of the link's
          * destination (or nullptr)
          */
-        gtirb::Symbol *symbol_from_addr(gtirb::Module *module) {
+        gtirb::Symbol *dest_from_addr(gtirb::Module *module) {
             if (!dst_addr) return nullptr;
-            gtirb::Addr gAddr(*dst_addr);
-            for (gtirb::Symbol &symbol : module->findSymbols(gAddr)) {
-                if (dst_name and symbol.getName() != *dst_name) {
-                    LOG(10, "Mismatched names in " << label() << " (points to "
-                                                   << symbol.getName() << ")");
-                }
-                return &symbol;
-            }
-            return nullptr;
+            return symbol_from_addr(*dst_addr, dst_name, module);
+        }
+
+        /**
+         * @brief Fetches the symbol associated with the destination base
+         * address if it exists
+         *
+         * @param module The module in which the gtirb symbol would reside
+         * @return gtirb::Symbol *A symbol with the address of the link's
+         * destination (or nullptr)
+         */
+        gtirb::Symbol *base_from_addr(gtirb::Module *module) {
+            if (!base_dst_addr) return nullptr;
+            return symbol_from_addr(*base_dst_addr, base_dst_name, module);
         }
 
         /**
@@ -474,11 +533,17 @@ public:
             std::stringstream ss;
             ss << "0x" << std::hex << src_addr << " ("
                << (src_name ? *src_name : "<UNKNOWN NAME>") << ") -> ";
+
             if (dst_addr)
                 ss << "0x" << *dst_addr;
             else
                 ss << "<UNKNOWN ADDR>";
             ss << " (" << (dst_name ? *dst_name : symAddrName(*dst_addr))
+               << ")";
+
+            if (base_dst_addr) ss << "0x" << *base_dst_addr;
+            ss << " ("
+               << (base_dst_name ? *base_dst_name : symAddrName(*base_dst_addr))
                << ")";
             return ss.str();
         }
@@ -537,6 +602,13 @@ public:
         eCtx.module = eModule;
         gCtx.module = gModule;
 
+        // Revert address offsets before parsing
+        // TODO: Make sure this does not interfere with Egaltio rewriting
+        eCtx.module->setBaseAddress(0);
+        for (auto region : CIter::regions(eCtx.module)) {
+            region->updateAddressFor(0);
+        }
+
         // Cannot simply call
         //   recurse(eModule);
         // because the order of traversal matters here.
@@ -570,7 +642,7 @@ public:
             // If there is no name, but there is an address, use the existing
             // symbol if it matches
             if (!dst) {
-                dst = linkInfo.symbol_from_addr(gModule);
+                dst = linkInfo.dest_from_addr(gModule);
             }
             // Otherwise, create the destination symbol if necessary
             if (!dst) {
@@ -600,8 +672,15 @@ public:
             assert(std::next(interval) == byteIntervals.end());
             auto offset = gtirb::Addr(linkInfo.src_addr) -
                           *interval->getAddress();
-            interval->addSymbolicExpression<gtirb::SymAddrConst>(
-                offset, linkInfo.dst_offset, dst, linkInfo.attrs);
+            if (linkInfo.base_dst_addr) {
+                auto base = linkInfo.base_from_addr(gModule);
+                interval->addSymbolicExpression<gtirb::SymAddrAddr>(
+                    offset, linkInfo.dst_scale, linkInfo.dst_offset, dst, base);
+            }
+            else {
+                interval->addSymbolicExpression<gtirb::SymAddrConst>(
+                    offset, linkInfo.dst_offset, dst, linkInfo.attrs);
+            }
             LOG(10, "Added symbolic expression for " << linkInfo.label()
                                                      << " at " << offset);
         }
@@ -1093,9 +1172,13 @@ public:
         recurse(initFunctionList);
     }
     void visit(LibraryList *libraryList) { recurse(libraryList); }
+
     void visit(JumpTable *jumpTable) {
         log_chunk("- Chunk: !jumpTable ", jumpTable->getName());
+        log_chunk("  Location: ", jumpTable->getAddress());
+        eCtx.jtable = jumpTable;
         recurse(jumpTable);
+        eCtx.jtable = nullptr;
     }
 
     void visit(PLTTrampoline *trampoline) {
@@ -1105,10 +1188,18 @@ public:
         log_chunk("  GotPLTEntry: ", trampoline->getGotPLTEntry());
         gCtx.module->addSymbol(C, name);
     }
+
     void visit(JumpTableEntry *jumpTableEntry) {
-        // TODO: Jump table serialization does not work
+        // TODO: This currently ignores scale and offset variables that might be
+        // relevant for some programs
         log_chunk("- Chunk: !jtentry ", jumpTableEntry->getName());
+
+        auto instrAddr = jumpTableEntry->getAddress();
+        auto baseAddress = eCtx.jtable->getAddress();
+        auto link = jumpTableEntry->getLink();
+        links.push_back(LinkInfo::from_link(instrAddr, link, baseAddress));
     }
+
     void visit(MarkerList *markerList) {
         log_chunk("- Chunk: !markerList ", markerList->getName());
         recurse(markerList);
