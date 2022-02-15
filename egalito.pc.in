@@ -7,5 +7,5 @@ Name:egalito
 Description: 
 Version: 0.1.0
 Requires.private: capstone
-Libs: -legalito
+Libs: -L${libdir} -legalito
 Cflags: -I${includedir} -CFLAGS

@@ -11,7 +11,7 @@ headers=analysis archive break chunk conductor debug\
   disasm dwarf elf generate gtirb instr load log operation\
   pass runtime snippet transform util
 header_files := $(foreach dir,$(headers),$(wildcard src/$(dir)/*.h))
-header_files += src/config/config.h 
+header_files += src/config/config.h src/config.h src/types.h
 new_headers := $(foreach f,$(header_files),build/include/$(f))
 PKGCFGDIR := build/pkgconfig
 PKGCFGFILE := ${PKGCFGDIR}/egalito.pc
