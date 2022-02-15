@@ -1,2 +1,5 @@
 *.swp
 test_output/
+*.deb
+build/
+_CPack*
