@@ -359,16 +359,13 @@ public:
               dst_addr(dst_addr),
               dst_name(dst_name) {}
 
-        LinkInfo(address_t src_addr, std::optional<std::string> src_name,
-            address_t dst_addr, address_t base_dst_addr)
-            : src_addr(src_addr),
-              src_name(src_name),
-              dst_addr(dst_addr),
-              base_dst_addr(base_dst_addr) {}
-
         static LinkInfo from_link(address_t src_addr, Link *link,
-            std::optional<std::string> src_name = std::nullopt) {
+            std::optional<std::string> src_name = std::nullopt,
+            std::optional<address_t> base_addr = std::nullopt,
+            std::optional<std::string> base_name = std::nullopt) {
             LinkInfo li(src_addr, src_name, link->getTargetAddress());
+            li.base_dst_addr = base_addr;
+            li.base_dst_name = base_name;
             if (auto *target = link->getTarget()) {
                 li.dst_name = target->getName();
             }
@@ -413,17 +410,6 @@ public:
             // if (link->isRIPRelative()) {
             //     // log_chunk("  RIPRelative: True");
             // }
-            return li;
-        }
-
-        static LinkInfo from_link(address_t src_addr, Link *link,
-            address_t base_address,
-            std::optional<std::string> src_name = std::nullopt) {
-            LinkInfo li(
-                src_addr, src_name, link->getTargetAddress(), base_address);
-            if (auto *target = link->getTarget()) {
-                li.dst_name = target->getName();
-            }
             return li;
         }
 
@@ -1235,10 +1221,13 @@ public:
         // relevant for some programs
         log_chunk("- Chunk: !jtentry ", jumpTableEntry->getName());
 
-        auto instrAddr = jumpTableEntry->getAddress();
-        auto baseAddress = eCtx.jtable->getAddress();
+        auto entryAddr = jumpTableEntry->getAddress();
+        auto entryName = jumpTableEntry->getName();
         auto link = jumpTableEntry->getLink();
-        links.push_back(LinkInfo::from_link(instrAddr, link, baseAddress));
+        auto baseAddress = eCtx.jtable->getAddress();
+        auto baseName = eCtx.jtable->getName();
+        links.push_back(LinkInfo::from_link(
+            entryAddr, link, entryName, baseAddress, baseName));
     }
 
     void visit(MarkerList *markerList) {
