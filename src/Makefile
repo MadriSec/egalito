@@ -99,11 +99,11 @@ release: all
 
 $(BUILDDIR)load/emulator.o $(BUILDDIR)transform/data.o: | $(GEN_TIMESTAMP)
 $(ALL_OBJECTS): | $(BUILDTREE)
-$(BUILDTREE): ./config/config.h
+$(BUILDTREE): |./config/config.h
 	@mkdir -p $@
 
 ./config/config.h:
-	$(call short-make, config)
+	$(call short-make,config)
 
 .symlinks: $(OUTPUTS)
 	@touch $@
@@ -148,4 +148,5 @@ $(LOADERPIE): $(LOADERPIE_OBJECTS) | $(SHARED_LIBRARY)
 # Other targets
 .PHONY: clean
 clean:
-	-rm -rf $(BUILDDIR) .symlinks $(SYMLINKS) ex example symbols.elf
+	-rm -rf $(BUILDDIR) .symlinks $(SYMLINKS) ex example symbols.elf'
+	$(call short-make, config clean)

@@ -17,8 +17,10 @@ endif
 .PHONY: all src test app clean realclean
 all: dep src test app
 	@true
-src: dep 
+src: dep config
 	$(call short-make,src)
+config: 
+	$(call short-make, src/config)
 test: src
 	$(call short-make,test)
 	$(call short-make,test/example)

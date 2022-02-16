@@ -33,8 +33,9 @@ build/include/%.h: %.h
 	@mkdir -p build/include
 	@cp --parents $< build/include
 
+EGALITO_PC_TPL := $(shell cat egalito.pc.in)
 ${PKGCFGFILE}: egalito.pc.in | ${PKGCFGDIR}
-	$(file >$@,$(subst -CFLAGS,$(filter -D%,$(CFLAGS)),$(file <$<)))
+	$(file >$@,$(subst -CFLAGS,$(filter -D%,$(CFLAGS)),$(EGALITO_PC_TPL)))
 
 ${PKGCFGDIR}:
 	mkdir -p $@
