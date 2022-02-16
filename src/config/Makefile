@@ -1,5 +1,5 @@
 
-include ../env.mk
+include ../../env.mk
 
 PLATFORM_CONFIG_FILE = $(P_ARCH)-$(DISTRO).h
 
