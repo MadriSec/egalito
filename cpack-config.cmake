@@ -5,24 +5,20 @@ set(EGALITO_STATIC_DIR ${EGALITO_BUILD_DIR}/static)
 set(EGALITO_HEADER_DIR ${EGALITO_BUILD_DIR}/include/src)
 set(EGALITO_PKGCFG_DIR ${EGALITO_BUILD_DIR}/pkgconfig)
 
-set(CAPSTONE_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/dep/capstone/install)
-
 if(CPACK_EGALITO_PACKAGE STREQUAL  "lib")
   #debian
   set(CPACK_INSTALLED_DIRECTORIES 
-    ${EGALITO_LIBRARY_DIR} "usr/lib/egalito" 
+    ${EGALITO_LIBRARY_DIR} "usr/lib"
     "${EGALITO_DEP_DIR}/libegalito.so" "usr/lib/egalito"
-    "${CAPSTONE_ROOT_DIR}/lib" "usr/lib/egalito/capstone"
     )
   set(CPACK_PACKAGE_NAME "libegalito")
   set(CPACK_DEBIAN_PACKAGE_DEPENDS 
-    "libc6")
+    "libc6, libcapstone-dev")
   #rpm: todo
 elseif(CPACK_EGALITO_PACKAGE STREQUAL "dev")
   set(CPACK_INSTALLED_DIRECTORIES 
     ${EGALITO_HEADER_DIR} "usr/include/egalito"
     ${EGALITO_PKGCFG_DIR} "usr/lib/pkgconfig"
-    "${CAPSTONE_ROOT_DIR}/include/capstone" "usr/include/egalito/capstone"
     )
   set(CPACK_PACKAGE_NAME "libegalito-dev")
   #TODO: GET CAPSTONE VERSION PROGRAMATICALLY

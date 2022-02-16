@@ -148,5 +148,5 @@ $(LOADERPIE): $(LOADERPIE_OBJECTS) | $(SHARED_LIBRARY)
 # Other targets
 .PHONY: clean
 clean:
-	-rm -rf $(BUILDDIR) .symlinks $(SYMLINKS) ex example symbols.elf'
+	-rm -rf $(BUILDDIR) .symlinks $(SYMLINKS) ex example symbols.elf
 	$(call short-make, config clean)

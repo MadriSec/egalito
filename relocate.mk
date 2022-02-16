@@ -24,6 +24,9 @@ relocate-bin: ${binaries}
 	install -m0755 -D -t ./build/bin $^
 
 relocate-lib: ${libs}
+relocate-dep: ${deps}
+
+relocate-lib relocate-dep:
 	install -m0644 -D -t ./build/lib $^
 
 relocate-dev: ${new_headers} $(PKGCFGFILE)
@@ -33,16 +36,12 @@ build/include/%.h: %.h
 	@mkdir -p build/include
 	@cp --parents $< build/include
 
-EGALITO_PC_TPL := $(shell cat egalito.pc.in)
 ${PKGCFGFILE}: egalito.pc.in | ${PKGCFGDIR}
-	$(file >$@,$(subst -CFLAGS,$(filter -D%,$(CFLAGS)),$(EGALITO_PC_TPL)))
+	cat $< | sed 's/-CFLAGS/$(filter -D%,$(CFLAGS))/g' > $@
 
 ${PKGCFGDIR}:
 	mkdir -p $@
-
-relocate-dep: 
-	install -m0644 -D -t ./build/lib ${deps}
-
+	
 relocate-static: 
 	install -m0644 -D -t ./build/static ${static_libs}
 

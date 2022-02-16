@@ -1,11 +1,11 @@
 prefix=/usr
 exec_prefix=${prefix}
 includedir=${prefix}/include/egalito
-libdir=${prefix}/lib/egalito 
+libdir=${prefix}/lib 
 
 Name:egalito
 Description: 
 Version: 0.1.0
 Requires.private: capstone
-Libs: -L${libdir} -legalito -Wl,-rpath ${libdir}
+Libs: -legalito 
 Cflags: -I${includedir} -CFLAGS
