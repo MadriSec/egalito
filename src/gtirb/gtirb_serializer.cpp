@@ -1217,8 +1217,6 @@ public:
     }
 
     void visit(JumpTableEntry *jumpTableEntry) {
-        // TODO: This currently ignores scale and offset variables that might be
-        // relevant for some programs
         log_chunk("- Chunk: !jtentry ", jumpTableEntry->getName());
 
         auto entryAddr = jumpTableEntry->getAddress();
