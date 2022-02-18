@@ -837,6 +837,11 @@ public:
         gCtx.section = gSection;
         eCtx.section = eSection;
 
+        if (eSection->getType() == DataSection::Type::TYPE_DYNAMIC) {
+            // We already add dynamic info elsewhere.
+            return;
+        }
+
         if (eSection->getSize()) {
             // Attempt to create a single byte interval per section
             // (further gtirb analyses can split this up if desired)
