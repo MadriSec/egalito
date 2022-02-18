@@ -1,7 +1,8 @@
 include env.mk
 
 binaries=app/etshell app/etcoverage app/etharden app/etobjdump\
-  app/etorder app/etprofile app/etsandbox app/ettwocode app/etelf
+  app/etorder app/etprofile app/etsandbox app/ettwocode app/etelf\
+  app/etgtirb
 libs=src/libegalito.so src/libaddon.so \
   app/libcet.so app/libcoverage.so  app/libsandbox.so
 deps= dep/distorm3/make/linux/libdistorm3.so
