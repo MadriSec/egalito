@@ -139,6 +139,9 @@ protected:
      */
     template <typename ChildT = Chunk *, typename ParentT>
     void recurse(ParentT *parent) {
+        if (!parent) {
+            return;
+        }
         chunk_depth += 1;
         for (ChildT child : CIter::children(parent)) {
             child->accept(this);
@@ -676,9 +679,7 @@ public:
         }
         recurse<DataRegion *>(eModule->getDataRegionList());
         recurse<Function *>(eModule->getFunctionList());
-        if (eModule->getPLTList()) {
-            recurse<PLTTrampoline *>(eModule->getPLTList());
-        }
+        recurse<PLTTrampoline *>(eModule->getPLTList());
         recurse<VTable *>(eModule->getVTableList());
         recurse<JumpTable *>(eModule->getJumpTableList());
         recurse<Marker *>(eModule->getMarkerList());
@@ -1036,6 +1037,10 @@ public:
     DataSection *getEgalitoSection(Function *function) {
         assert(eCtx.module != nullptr);
         auto eSymbol = function->getSymbol();
+        if (!eSymbol) {
+            return eCtx.module->getDataRegionList()->findDataSectionContaining(
+                function->getAddress());
+        }
         // It is strange to me that I have to go through these lengths
         // to get the section in which a function is defined.
         // I may be able to just get it with the address instead
@@ -1050,12 +1055,6 @@ public:
         log_chunk("  Addr: ", function->getAddress());
         log_chunk("  Position: ", function->getPosition()->get());
         log_chunk("  Size: ", function->getSize());
-
-        auto eSymbol = function->getSymbol();
-        if (eSymbol == nullptr) {
-            log_chunk("  Symbol: NONE");
-            return;
-        }
 
         eCtx.section = getEgalitoSection(function);
         gCtx.section = nullptr;
@@ -1084,13 +1083,33 @@ public:
 
         log_chunk("  Symbol Section: ", gCtx.section->getName());
         eCtx.function = function;
-
+        std::string symName = function->getName();
+        auto symSize = function->getSize();
+        auto symType = Symbol::SymbolType::TYPE_FUNC;
+        auto symBind = Symbol::BindingType::BIND_LOCAL;
+        if (function->getSymbol()) {
+            auto eSymbol = function->getSymbol();
+            symName = eSymbol->getName();
+            symSize = eSymbol->getSize();
+            symType = eSymbol->getType();
+            symBind = eSymbol->getBind();
+        }
+        else if (function->getAddress() ==
+                 eCtx.program->getEntryPointAddress()) {
+            // Make sure we keep the defined entry point
+            symName = "_start";
+            function->setName(symName);
+            symBind = Symbol::BindingType::BIND_GLOBAL;
+        }
+        else {
+            // In case of fuzzyfunc, make sure we use proper assembly naming
+            std::replace(symName.begin(), symName.end(), '-', '_');
+        }
         gtirb::Symbol *gSymbol = gCtx.module->addSymbol(
-            C, gtirb::Addr(addr), eSymbol->getName());
+            C, gtirb::Addr(addr), symName);
         gCtx.functionId = gCtx.assignFunctionId(gSymbol);
-        gCtx.addSymbolInfo(gSymbol, eSymbol->getSize(),
-            eSymTypeStr(eSymbol->getType()),
-            eSymBindingStr(eSymbol->getBind()));
+        gCtx.addSymbolInfo(
+            gSymbol, symSize, eSymTypeStr(symType), eSymBindingStr(symBind));
 
         recurse<Block *>(function);
 
