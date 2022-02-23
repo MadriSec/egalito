@@ -206,6 +206,7 @@ sast:
 pages:
   image: $UBUNTU18_IMAGE
   needs: []
+  only: [main]
   script:
     - apt update && apt install -y doxygen clang graphviz
     - doxygen Doxyfile
