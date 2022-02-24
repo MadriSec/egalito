@@ -837,11 +837,6 @@ public:
         gCtx.section = gSection;
         eCtx.section = eSection;
 
-        if (eSection->getType() == DataSection::Type::TYPE_DYNAMIC) {
-            // We already add dynamic info elsewhere.
-            return;
-        }
-
         if (eSection->getSize()) {
             // Attempt to create a single byte interval per section
             // (further gtirb analyses can split this up if desired)
@@ -891,6 +886,11 @@ public:
      * important
      */
     void registerDataBlock(address_t varAddr, size_t varSize) {
+        // Do not register data blocks for non-data sections
+        if ((eCtx.section->getType() == DataSection::TYPE_DYNAMIC) ||
+            (eCtx.section->getType() == DataSection::TYPE_UNKNOWN)) {
+            return;
+        }
         // Check if we have to create a block at this address
         size_t curSize = block_addrs[varAddr];
         if (curSize > 0 && varSize > 0) {
