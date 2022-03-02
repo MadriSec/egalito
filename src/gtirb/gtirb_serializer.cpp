@@ -286,20 +286,21 @@ public:
         /**
          * @brief Add a library as a dependency of the current module
          */
-        void addLibrary(std::string libraryName, std::string libraryPath) {
+        void addLibrary(std::string libraryName) {
             assert(module);
             auto &libraries = *module->getAuxData<gtirb::schema::Libraries>();
             libraries.push_back(libraryName);
+        }
 
-            // TODO: This libraryPath is the resolved path to the library,
-            // not necessarily an rpath encoded in the binary.
-            // libraryPaths only really needs rpaths, but I am not sure how to
-            // get them.
-            // auto &libraryPaths =
-            //    *module->getAuxData<gtirb::schema::LibraryPaths>();
-            // std::string libDir =
-            //    std::filesystem::path(libraryPath).parent_path().string();
-            // libraryPaths.push_back(libDir);
+        /**
+         * @brief Add a library search path for the current module
+         */
+        void addLibraryPath(std::string libraryPath) {
+            assert(module);
+
+            auto &libraryPaths =
+                *module->getAuxData<gtirb::schema::LibraryPaths>();
+            libraryPaths.push_back(libraryPath);
         }
     } gCtx;
 
@@ -619,7 +620,7 @@ public:
         // because library usage is added to the gtirb::module's auxData
         // (which doesn't exist until module parsing)
         // FIXME: This will not work with a deep scan of dependencies
-        recurse<Library *>(eProgram->getLibraryList());
+        visit(eProgram->getLibraryList());
     }
 
     void visit(Module *eModule) {
@@ -775,6 +776,15 @@ public:
         }
     }
 
+    void visit(LibraryList *libraryList) {
+        log_chunk("- LibraryList ");
+        for (auto path : libraryList->getSearchPaths()) {
+            log_chunk("- Search Path: ", path);
+            gCtx.addLibraryPath(path);
+        }
+        recurse(libraryList);
+    }
+
     void visit(Library *library) {
         log_chunk("- Library: ", library->getName());
         log_chunk("  path: ", library->getResolvedPath());
@@ -784,7 +794,7 @@ public:
             log_chunk("  Main: True");
             return;
         };
-        gCtx.addLibrary(library->getName(), library->getResolvedPath());
+        gCtx.addLibrary(library->getName());
         if (!library->getModule()) {
             log_chunk("  Has module: False");
             // TODO: do other aspects of the library have to be dealt with?
@@ -1222,7 +1232,6 @@ public:
     void visit(InitFunctionList *initFunctionList) {
         recurse(initFunctionList);
     }
-    void visit(LibraryList *libraryList) { recurse(libraryList); }
 
     void visit(JumpTable *jumpTable) {
         log_chunk("- Chunk: !jumpTable ", jumpTable->getName());
