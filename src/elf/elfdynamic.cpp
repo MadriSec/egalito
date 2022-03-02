@@ -57,7 +57,7 @@ void ElfDynamic::addDependency(Library *library, std::string soname) {
 std::string ElfDynamic::findSharedObject(std::string name) {
     setupSearchPath();
 
-    for(auto path : searchPath) {
+    for(auto path : libraryList->getSearchPaths()) {
         std::string fullPath = path + "/" + name;
         std::ifstream file(fullPath);
         if(file.is_open() && isValidElf(file)) {
@@ -82,6 +82,7 @@ static void split(const std::string &s, char delim, Out result) {
 
 void ElfDynamic::setupSearchPath() {
     // make idempotent
+    auto searchPath = libraryList->getSearchPaths();
     if(searchPath.size()) return;
 
     const char *egalito_library_path = getenv("EGALITO_LIBRARY_PATH");
@@ -107,11 +108,14 @@ void ElfDynamic::setupSearchPath() {
     else {
         parseLdConfig(cfs->transform("/etc/ld.so.conf"), searchPath);
     }
-    searchPath.push_back(cfs->transform("/lib"));
-    searchPath.push_back(cfs->transform("/usr/lib"));
-    searchPath.push_back(cfs->transform("/lib64"));
-    searchPath.push_back(cfs->transform("/usr/lib64"));
-    searchPath.push_back(cfs->transform("/usr/local/musl/lib"));
+    for (auto sPath : searchPath) {
+        libraryList->addSearchPath(sPath);
+    }
+    libraryList->addSearchPath(cfs->transform("/lib"));
+    libraryList->addSearchPath(cfs->transform("/usr/lib"));
+    libraryList->addSearchPath(cfs->transform("/lib64"));
+    libraryList->addSearchPath(cfs->transform("/usr/lib64"));
+    libraryList->addSearchPath(cfs->transform("/usr/local/musl/lib"));
 }
 
 std::vector<std::string> ElfDynamic::doGlob(std::string pattern) {

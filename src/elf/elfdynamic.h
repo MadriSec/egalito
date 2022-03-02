@@ -15,8 +15,6 @@ private:
     std::vector<std::pair<std::string, Library *>> dependencyList;
     std::string rpath;
     LibraryList *libraryList;
-
-    std::vector<std::string> searchPath;
 public:
     ElfDynamic(LibraryList *libraryList)
         : libraryList(libraryList) {}
