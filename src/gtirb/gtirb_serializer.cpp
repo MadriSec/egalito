@@ -516,7 +516,7 @@ public:
             std::string name_string = sym_name ? *sym_name : "<UNKNOWN NAME>";
 
             if (sym_addr)
-                ss << "0x" << *sym_addr;
+                ss << "0x" << std::hex << *sym_addr;
             else
                 ss << "<UNKNOWN ADDR>";
             ss << " (" << name_string << ")";
@@ -1097,19 +1097,18 @@ public:
         auto symSize = function->getSize();
         auto symType = Symbol::SymbolType::TYPE_FUNC;
         auto symBind = Symbol::BindingType::BIND_LOCAL;
-        if (function->getSymbol()) {
+        if (function->getAddress() == eCtx.program->getEntryPointAddress()) {
+            // Make sure we keep the defined entry point
+            symName = "_start";
+            function->setName(symName);
+            symBind = Symbol::BindingType::BIND_GLOBAL;
+        }
+        else if (function->getSymbol()) {
             auto eSymbol = function->getSymbol();
             symName = eSymbol->getName();
             symSize = eSymbol->getSize();
             symType = eSymbol->getType();
             symBind = eSymbol->getBind();
-        }
-        else if (function->getAddress() ==
-                 eCtx.program->getEntryPointAddress()) {
-            // Make sure we keep the defined entry point
-            symName = "_start";
-            function->setName(symName);
-            symBind = Symbol::BindingType::BIND_GLOBAL;
         }
         else {
             // In case of fuzzyfunc, make sure we use proper assembly naming
