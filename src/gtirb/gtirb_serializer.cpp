@@ -13,6 +13,8 @@
 #include "chunk/concrete.h"
 #include "chunk/visitor.h"
 
+#include "disasm/makesemantic.h"
+
 #include "gtirb/IR.hpp"
 #include "gtirb/Context.hpp"
 
@@ -50,6 +52,12 @@ struct Libraries {
 /// \brief Auxiliary data that includes names of necessary library paths.
 struct LibraryPaths {
     static constexpr const char *Name = "libraryPaths";
+    typedef std::vector<std::string> Type;
+};
+
+/// \brief Auxiliary data describing a binary's type.
+struct BinaryType {
+    static constexpr const char *Name = "binaryType";
     typedef std::vector<std::string> Type;
 };
 }
@@ -301,6 +309,20 @@ public:
             auto &libraryPaths =
                 *module->getAuxData<gtirb::schema::LibraryPaths>();
             libraryPaths.push_back(libraryPath);
+        }
+
+        void setBinaryType(ElfMap *elfMap) {
+            assert(module);
+            auto &binType = *module->getAuxData<gtirb::schema::BinaryType>();
+            if (elfMap->isExecutable()) {
+                binType.push_back("EXEC");
+            }
+            if (elfMap->isSharedLibrary()) {
+                binType.push_back("DYN");
+            }
+            if (elfMap->isObjectFile()) {
+                binType.push_back("REL");
+            }
         }
     } gCtx;
 
@@ -645,6 +667,8 @@ public:
             gtirb::schema::Libraries::Type());
         gModule->addAuxData<gtirb::schema::LibraryPaths>(
             gtirb::schema::LibraryPaths::Type());
+        gModule->addAuxData<gtirb::schema::BinaryType>(
+            gtirb::schema::BinaryType::Type());
 
         // TODO: There's probably a real place to get this info within egalito
         gModule->setFileFormat(gtirb::FileFormat::ELF);
@@ -656,6 +680,9 @@ public:
         // Set the context for this layer of the hierarchy
         eCtx.module = eModule;
         gCtx.module = gModule;
+
+        // Set the elf binary type
+        gCtx.setBinaryType(eModule->getElfSpace()->getElfMap());
 
         // Revert address offsets before parsing
         // TODO: Make sure this does not interfere with Egaltio rewriting
@@ -1153,6 +1180,23 @@ public:
         gCtx.codeBlock = nullptr;
     }
 
+    void addImmediateLinks(SemanticImpl *semantic, address_t inst_addr) {
+        assert(eCtx.function != nullptr);
+        auto ins_asm = semantic->getAssembly();
+        auto ins_ops = ins_asm->getAsmOperands();
+
+        for (size_t i = 0; i < ins_ops->getOpCount(); i++) {
+            auto op = ins_ops->getOperands()[i];
+            if (op.type == X86_OP_IMM) {
+                auto op_offset = MakeSemantic::getDispOffset(ins_asm.get(), i);
+                auto op_addr = inst_addr + op_offset;
+                auto sym_addr = op.imm;
+                links.push_back(
+                    LinkInfo(op_addr, eCtx.function->getName(), sym_addr));
+            }
+        }
+    }
+
     void visit(Instruction *instruction) {
         // Instructions within functions are deserialized one at a time
         auto instrAddr = instruction->getAddress();
@@ -1200,6 +1244,9 @@ public:
 
             links.push_back(LinkInfo::from_link(
                 instrAddr + op_offset, link, eCtx.function->getName()));
+        }
+        else if (auto *si = dynamic_cast<SemanticImpl *>(semantic)) {
+            addImmediateLinks(si, instrAddr);
         }
     }
 
@@ -1297,6 +1344,7 @@ void GtirbSerializer::serialize(Program *program, std::string filename) {
         gtirb::schema::SymbolForwarding>();
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::Libraries>();
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::LibraryPaths>();
+    gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::BinaryType>();
     LOG(1, "GTIRB serialization");
 
     std::ofstream chunklog;
