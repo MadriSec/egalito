@@ -324,6 +324,13 @@ public:
                 binType.push_back("REL");
             }
         }
+
+        void setSectionAlignment(size_t alignment) {
+            assert(module);
+            assert(section);
+            auto &Alignment = *module->getAuxData<gtirb::schema::Alignment>();
+            Alignment[section->getUUID()] = alignment;
+        }
     } gCtx;
 
     /**
@@ -669,6 +676,8 @@ public:
             gtirb::schema::LibraryPaths::Type());
         gModule->addAuxData<gtirb::schema::BinaryType>(
             gtirb::schema::BinaryType::Type());
+        gModule->addAuxData<gtirb::schema::Alignment>(
+            gtirb::schema::Alignment::Type());
 
         // TODO: There's probably a real place to get this info within egalito
         gModule->setFileFormat(gtirb::FileFormat::ELF);
@@ -871,9 +880,9 @@ public:
             gSection->addFlag(gtirb::SectionFlag::Executable);
         }
 
-        // TODO: Alignment?
         gCtx.section = gSection;
         eCtx.section = eSection;
+        gCtx.setSectionAlignment(eSection->getAlignment());
 
         if (eSection->getSize()) {
             // Attempt to create a single byte interval per section
@@ -1187,13 +1196,20 @@ public:
 
         for (size_t i = 0; i < ins_ops->getOpCount(); i++) {
             auto op = ins_ops->getOperands()[i];
+            address_t sym_addr = 0;
             if (op.type == X86_OP_IMM) {
-                auto op_offset = MakeSemantic::getDispOffset(ins_asm.get(), i);
-                auto op_addr = inst_addr + op_offset;
-                auto sym_addr = op.imm;
-                links.push_back(
-                    LinkInfo(op_addr, eCtx.function->getName(), sym_addr));
+                sym_addr = op.imm;
             }
+            else if (op.type == X86_OP_MEM) {
+                sym_addr = op.mem.disp;
+            }
+            else {
+                continue;
+            }
+            auto op_offset = MakeSemantic::getDispOffset(ins_asm.get(), i);
+            auto op_addr = inst_addr + op_offset;
+            links.push_back(
+                LinkInfo(op_addr, eCtx.function->getName(), sym_addr));
         }
     }
 
@@ -1345,6 +1361,7 @@ void GtirbSerializer::serialize(Program *program, std::string filename) {
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::Libraries>();
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::LibraryPaths>();
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::BinaryType>();
+    gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::Alignment>();
     LOG(1, "GTIRB serialization");
 
     std::ofstream chunklog;
