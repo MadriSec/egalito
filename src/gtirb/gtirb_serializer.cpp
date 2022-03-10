@@ -664,6 +664,140 @@ public:
         visit(eProgram->getLibraryList());
     }
 
+    /**
+     * @brief Determine whether an address points to a valid place in the
+     * program.
+     *
+     * @todo This may be an unreliable way to determine whether a chunk of data
+     * is an address and not just a constant.
+     *
+     * @param sym_addr Address to validate
+     * @return true sym_addr points to a region within one of the program
+     * sections
+     * @return false Otherwise.
+     */
+    bool symbolAddrValid(address_t sym_addr) {
+        return eCtx.module->getDataRegionList()->findDataSectionContaining(
+                   sym_addr) != nullptr;
+    }
+
+    /**
+     * @brief Register a DataBlock in a gtirb::ByteInterval.
+     *
+     * @details If the data appears to be a collection of addresses, this
+     * function will divide the data into address-sized blocks before adding
+     * them. Valid address entries will be queued for SymbolicExpression
+     * creation.
+     *
+     * @param interval Byte interval to which the DataBlock will be registered.
+     * @param varAddr Address of the data to register
+     * @param varSize Size of the data to register in bytes
+     */
+    void registerDataChunks(
+        gtirb::ByteInterval *interval, address_t varAddr, size_t varSize) {
+        // Only break the blocks into addresses if the block is divisible by the
+        // address size.
+        size_t chunkSize = (varAddr % sizeof(address_t)) ? varAddr
+                                                         : sizeof(address_t);
+        address_t endAddr = varAddr + varSize;
+        address_t intervalAddr = (address_t)(*interval->getAddress());
+        while (varAddr < endAddr) {
+            auto blockSize = endAddr - varAddr;
+            if (blockSize > chunkSize) {
+                blockSize = chunkSize;
+            }
+
+            log_chunk("  .block addr: 0x", std::hex, varAddr);
+            log_chunk("  .block size: 0x", std::hex, blockSize);
+            auto varOffset = varAddr - intervalAddr;
+            auto DataBlock = gtirb::DataBlock::Create(C, blockSize);
+            interval->addBlock(varOffset, DataBlock);
+            block_addrs[varAddr] = blockSize;
+
+            // Add links for data targets
+            // TODO: I am not sure if this is the right way to handle this.
+            // We rely on two assumptions here:
+            // 1. We assume that when Egalito creates address-sized Global and
+            // Data variables, those variables contain addresses and not some
+            // other kind of data.
+            // 2. We assume that an address is valid as long as it resides in a
+            // data section.
+            // These assumptions seem to be holding for the binaries I have
+            // tested, but they may be proven wrong.
+            if (blockSize == chunkSize) {
+                auto intervalBegin = interval->bytes_begin<address_t>();
+                auto varBegin = intervalBegin + (varOffset / chunkSize);
+                address_t destAddr = *varBegin;
+
+                if (symbolAddrValid(destAddr)) {
+                    log_chunk("  .dest addr: 0x", std::hex, destAddr);
+                    links.push_back(LinkInfo(varAddr, std::nullopt, destAddr));
+                }
+            }
+
+            varAddr += blockSize;
+        }
+    }
+
+    /**
+     * @brief Add data blocks for gaps between byte intervals that have already
+     * been registered.
+     */
+    void addMissingDataBlocks() {
+        // Keep a pointer to the current location in each byte interval,
+        // then run through the created blocks in ascending order,
+        // filling in gaps in the blocks as you go
+
+        std::unordered_map<gtirb::ByteInterval *, gtirb::Addr> addrCursors;
+        for (auto &[blockAddr, blockSize] : block_addrs) {
+            // Should be exactly one interval on this address at this point
+            auto intervals = gCtx.module->findByteIntervalsOn(
+                gtirb::Addr(blockAddr));
+            if (intervals.begin() == intervals.end()) {
+                std::cerr << "WARNING: No interval covering " << std::hex
+                          << blockAddr << std::endl;
+                continue;
+            }
+            gtirb::ByteInterval &interval = *intervals.begin();
+            gtirb::Addr intervalStart = *interval.getAddress();
+
+            // If there is an existing cursor for this byte interval, use it
+            // Otherwise, advance it from 0 (the default value for addrCursors)
+            // to the start address of this interval
+            gtirb::Addr &cursor = addrCursors[&interval];
+            cursor = std::max(cursor, intervalStart);
+
+            gtirb::Addr gAddr(blockAddr);
+            if (cursor < gAddr) {
+                log_chunk("- filler:");
+                registerDataChunks(
+                    &interval, (address_t)cursor, (size_t)(gAddr - cursor));
+                cursor = gAddr + blockSize;
+            }
+            else {
+                // If blockAddr is behind the cursor addr,
+                // that means that the new block falls in the middle of
+                // a previously created one.
+                // Right now we just skip over the overlap to the next block.
+                // TODO: Creating overlap or splitting the existing block might
+                // be better.
+                cursor = std::max(cursor, gtirb::Addr(blockAddr + blockSize));
+            }
+        }
+
+        log_chunk("  Closing blocks: ");
+        // Add extra datablocks to end of intervals
+        // (might not be necessary)
+        for (auto &[interval, cursor] : addrCursors) {
+            gtirb::Addr intervalAddr = *interval->getAddress();
+            gtirb::Addr intervalEnd = intervalAddr + interval->getSize();
+            if (intervalEnd > cursor) {
+                registerDataChunks(interval, (address_t)cursor,
+                    (size_t)(intervalEnd - cursor));
+            }
+        }
+    }
+
     void visit(Module *eModule) {
         log_chunk("- Chunk: !module ", eModule->getName());
 
@@ -735,6 +869,8 @@ public:
         recurse<JumpTable *>(eModule->getJumpTableList());
         recurse<Marker *>(eModule->getMarkerList());
 
+        addMissingDataBlocks();
+
         // Once functions and symbols have been traversed,
         // add information about the symbolic references witin the code/data
         // blocks
@@ -762,67 +898,6 @@ public:
             }
             LOG(10, "Added symbolic expression for " << linkInfo.label()
                                                      << " at " << offset);
-        }
-
-        // Add data blocks for regions that aren't covered by existing ones
-
-        // Keep a pointer to the current location in each byte interval,
-        // then run through the created blocks in ascending order,
-        // filling in gaps in the blocks as you go
-
-        std::unordered_map<gtirb::ByteInterval *, gtirb::Addr> addrCursors;
-        for (auto &[blockAddr, blockSize] : block_addrs) {
-            // Should be exactly one interval on this address at this point
-            auto intervals = gModule->findByteIntervalsOn(
-                gtirb::Addr(blockAddr));
-            if (intervals.begin() == intervals.end()) {
-                std::cerr << "WARNING: No interval covering " << std::hex
-                          << blockAddr << std::endl;
-                continue;
-            }
-            gtirb::ByteInterval &interval = *intervals.begin();
-            gtirb::Addr intervalStart = *interval.getAddress();
-
-            // If there is an existing cursor for this byte interval, use it
-            // Otherwise, advance it from 0 (the default value for addrCursors)
-            // to the start address of this interval
-            gtirb::Addr &cursor = addrCursors[&interval];
-            cursor = std::max(cursor, intervalStart);
-
-            gtirb::Addr gAddr(blockAddr);
-            if (cursor < gAddr) {
-                interval.addBlock<gtirb::DataBlock>(
-                    C, cursor - intervalStart, gAddr - cursor);
-                log_chunk("- filler:");
-                log_chunk("    start: ", cursor);
-                log_chunk("    end: ", blockAddr);
-                cursor = gAddr + blockSize;
-            }
-            else {
-                // If blockAddr is behind the cursor addr,
-                // that means that the new block falls in the middle of
-                // a previously created one.
-                // Right now we just skip over the overlap to the next block.
-                // TODO: Creating overlap or splitting the existing block might
-                // be better.
-                cursor = std::max(cursor, gtirb::Addr(blockAddr + blockSize));
-            }
-        }
-
-        log_chunk("  Closing blocks: ");
-        // Add extra datablocks to end of intervals
-        // (might not be necessary)
-        for (auto &[interval, cursor] : addrCursors) {
-            gtirb::Addr intervalAddr = *interval->getAddress();
-            gtirb::Addr intervalEnd = intervalAddr + interval->getSize();
-            if (intervalEnd > cursor) {
-                interval->addBlock<gtirb::DataBlock>(
-                    C, cursor - intervalAddr, intervalEnd - cursor);
-                log_chunk("  - start: ", cursor);
-                log_chunk("    end: ", intervalEnd);
-                log_chunk("    offset: ", cursor - intervalAddr);
-                log_chunk("    size: ", intervalEnd - cursor);
-            }
         }
     }
 
@@ -973,9 +1048,7 @@ public:
         }
         else if (varSize > 0) {
             // If a block needs to cover this whole set of bytes, add it now.
-            gCtx.byteInterval->addBlock<gtirb::DataBlock>(
-                C, varAddr - eCtx.section->getAddress(), varSize);
-            block_addrs[varAddr] = varSize;
+            registerDataChunks(gCtx.byteInterval, varAddr, varSize);
         }
         // If there isn't a set size for the variable,
         // it can just extend from here to the start of the next block.
@@ -1201,6 +1274,39 @@ public:
         log_chunk("  Instructions:");
         recurse<Instruction *>(block);
         gCtx.codeBlock = nullptr;
+    }
+
+    /**
+     * @brief Add link info for operands that use internal references.
+     *
+     * @param semantic Instruction semantic to check for references.
+     * @param inst_addr Address of the instruction.
+     */
+    void addOperandLinks(SemanticImpl *semantic, address_t inst_addr) {
+        assert(eCtx.function != nullptr);
+        auto ins_asm = semantic->getAssembly();
+        auto ins_ops = ins_asm->getAsmOperands();
+
+        for (size_t i = 0; i < ins_ops->getOpCount(); i++) {
+            auto op = ins_ops->getOperands()[i];
+            address_t sym_addr = 0;
+            if (op.type == X86_OP_IMM) {
+                sym_addr = op.imm;
+            }
+            else if (op.type == X86_OP_MEM) {
+                sym_addr = op.mem.disp;
+            }
+            else {
+                continue;
+            }
+
+            if (symbolAddrValid(sym_addr)) {
+                auto op_offset = MakeSemantic::getDispOffset(ins_asm.get(), i);
+                auto op_addr = inst_addr + op_offset;
+                links.push_back(
+                    LinkInfo(op_addr, eCtx.function->getName(), sym_addr));
+            }
+        }
     }
 
     void visit(Instruction *instruction) {
