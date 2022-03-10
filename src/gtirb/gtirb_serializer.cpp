@@ -524,7 +524,7 @@ public:
         static gtirb::Symbol *create_symbol(std::optional<address_t> sym_addr,
             std::optional<std::string> sym_name, gtirb::Context &C,
             gtirb::Module *module) {
-            if (!sym_name) {
+            if ((!sym_name) && (!sym_addr)) {
                 return nullptr;
             }
             LOG(10, "Creating symbol for " << label(sym_addr, sym_name));
@@ -1189,7 +1189,30 @@ public:
         gCtx.codeBlock = nullptr;
     }
 
-    void addImmediateLinks(SemanticImpl *semantic, address_t inst_addr) {
+    /**
+     * @brief Determine whether an address points to a valid place in the
+     * program.
+     *
+     * @todo This may be an unreliable way to determine whether a chunk of data
+     * is an address and not just a constant.
+     *
+     * @param sym_addr Address to validate
+     * @return true sym_addr points to a region within one of the program
+     * sections
+     * @return false Otherwise.
+     */
+    bool symbolAddrValid(address_t sym_addr) {
+        return eCtx.module->getDataRegionList()->findDataSectionContaining(
+                   sym_addr) != nullptr;
+    }
+
+    /**
+     * @brief Add link info for operands that use internal references.
+     *
+     * @param semantic Instruction semantic to check for references.
+     * @param inst_addr Address of the instruction.
+     */
+    void addOperandLinks(SemanticImpl *semantic, address_t inst_addr) {
         assert(eCtx.function != nullptr);
         auto ins_asm = semantic->getAssembly();
         auto ins_ops = ins_asm->getAsmOperands();
@@ -1206,10 +1229,13 @@ public:
             else {
                 continue;
             }
-            auto op_offset = MakeSemantic::getDispOffset(ins_asm.get(), i);
-            auto op_addr = inst_addr + op_offset;
-            links.push_back(
-                LinkInfo(op_addr, eCtx.function->getName(), sym_addr));
+
+            if (symbolAddrValid(sym_addr)) {
+                auto op_offset = MakeSemantic::getDispOffset(ins_asm.get(), i);
+                auto op_addr = inst_addr + op_offset;
+                links.push_back(
+                    LinkInfo(op_addr, eCtx.function->getName(), sym_addr));
+            }
         }
     }
 
@@ -1262,7 +1288,7 @@ public:
                 instrAddr + op_offset, link, eCtx.function->getName()));
         }
         else if (auto *si = dynamic_cast<SemanticImpl *>(semantic)) {
-            addImmediateLinks(si, instrAddr);
+            addOperandLinks(si, instrAddr);
         }
     }
 
