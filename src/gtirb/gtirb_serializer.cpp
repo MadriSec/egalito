@@ -60,12 +60,6 @@ struct BinaryType {
     static constexpr const char *Name = "binaryType";
     typedef std::vector<std::string> Type;
 };
-
-/// \brief Auxiliary data covering data object encoding specifiers.
-struct Encodings {
-    static constexpr const char *Name = "encodings";
-    typedef std::map<gtirb::UUID, std::string> Type;
-};
 }
 }
 
@@ -329,12 +323,6 @@ public:
             if (elfMap->isObjectFile()) {
                 binType.push_back("REL");
             }
-        }
-
-        void setStringEncoding(gtirb::UUID varId) {
-            assert(module);
-            auto &encodings = *module->getAuxData<gtirb::schema::Encodings>();
-            encodings[varId] = "string";
         }
 
         void setSectionAlignment(size_t alignment) {
@@ -822,8 +810,6 @@ public:
             gtirb::schema::LibraryPaths::Type());
         gModule->addAuxData<gtirb::schema::BinaryType>(
             gtirb::schema::BinaryType::Type());
-        gModule->addAuxData<gtirb::schema::Encodings>(
-            gtirb::schema::Encodings::Type());
         gModule->addAuxData<gtirb::schema::Alignment>(
             gtirb::schema::Alignment::Type());
 
@@ -1454,7 +1440,6 @@ void GtirbSerializer::serialize(Program *program, std::string filename) {
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::Libraries>();
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::LibraryPaths>();
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::BinaryType>();
-    gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::Encodings>();
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::Alignment>();
     LOG(1, "GTIRB serialization");
 
