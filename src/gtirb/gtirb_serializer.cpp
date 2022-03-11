@@ -689,6 +689,7 @@ public:
                                                          : sizeof(address_t);
         address_t endAddr = varAddr + varSize;
         address_t intervalAddr = (address_t)(*interval->getAddress());
+        bool isDynamic = eCtx.module->getElfSpace()->getElfMap()->isDynamic();
         while (varAddr < endAddr) {
             auto blockSize = endAddr - varAddr;
             if (blockSize > chunkSize) {
@@ -712,7 +713,7 @@ public:
             // data section.
             // These assumptions seem to be holding for the binaries I have
             // tested, but they may be proven wrong.
-            if (blockSize == chunkSize) {
+            if (isDynamic && (blockSize == chunkSize)) {
                 auto intervalBegin = interval->bytes_begin<address_t>();
                 auto varBegin = intervalBegin + (varOffset / chunkSize);
                 address_t destAddr = *varBegin;
@@ -1270,9 +1271,12 @@ public:
      */
     void addOperandLinks(SemanticImpl *semantic, address_t inst_addr) {
         assert(eCtx.function != nullptr);
+
+        if (eCtx.module->getElfSpace()->getElfMap()->isDynamic()) {
+            return;
+        }
         auto ins_asm = semantic->getAssembly();
         auto ins_ops = ins_asm->getAsmOperands();
-
         for (size_t i = 0; i < ins_ops->getOpCount(); i++) {
             auto op = ins_ops->getOperands()[i];
             address_t sym_addr = 0;
