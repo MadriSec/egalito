@@ -1189,56 +1189,6 @@ public:
         gCtx.codeBlock = nullptr;
     }
 
-    /**
-     * @brief Determine whether an address points to a valid place in the
-     * program.
-     *
-     * @todo This may be an unreliable way to determine whether a chunk of data
-     * is an address and not just a constant.
-     *
-     * @param sym_addr Address to validate
-     * @return true sym_addr points to a region within one of the program
-     * sections
-     * @return false Otherwise.
-     */
-    bool symbolAddrValid(address_t sym_addr) {
-        return eCtx.module->getDataRegionList()->findDataSectionContaining(
-                   sym_addr) != nullptr;
-    }
-
-    /**
-     * @brief Add link info for operands that use internal references.
-     *
-     * @param semantic Instruction semantic to check for references.
-     * @param inst_addr Address of the instruction.
-     */
-    void addOperandLinks(SemanticImpl *semantic, address_t inst_addr) {
-        assert(eCtx.function != nullptr);
-        auto ins_asm = semantic->getAssembly();
-        auto ins_ops = ins_asm->getAsmOperands();
-
-        for (size_t i = 0; i < ins_ops->getOpCount(); i++) {
-            auto op = ins_ops->getOperands()[i];
-            address_t sym_addr = 0;
-            if (op.type == X86_OP_IMM) {
-                sym_addr = op.imm;
-            }
-            else if (op.type == X86_OP_MEM) {
-                sym_addr = op.mem.disp;
-            }
-            else {
-                continue;
-            }
-
-            if (symbolAddrValid(sym_addr)) {
-                auto op_offset = MakeSemantic::getDispOffset(ins_asm.get(), i);
-                auto op_addr = inst_addr + op_offset;
-                links.push_back(
-                    LinkInfo(op_addr, eCtx.function->getName(), sym_addr));
-            }
-        }
-    }
-
     void visit(Instruction *instruction) {
         // Instructions within functions are deserialized one at a time
         auto instrAddr = instruction->getAddress();
@@ -1286,9 +1236,6 @@ public:
 
             links.push_back(LinkInfo::from_link(
                 instrAddr + op_offset, link, eCtx.function->getName()));
-        }
-        else if (auto *si = dynamic_cast<SemanticImpl *>(semantic)) {
-            addOperandLinks(si, instrAddr);
         }
     }
 
