@@ -685,7 +685,7 @@ public:
         gtirb::ByteInterval *interval, address_t varAddr, size_t varSize) {
         // Only break the blocks into addresses if the block is divisible by the
         // address size.
-        size_t chunkSize = (varAddr % sizeof(address_t)) ? varAddr
+        size_t chunkSize = (varAddr % sizeof(address_t)) ? varSize
                                                          : sizeof(address_t);
         address_t endAddr = varAddr + varSize;
         address_t intervalAddr = (address_t)(*interval->getAddress());
