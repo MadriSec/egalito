@@ -400,7 +400,12 @@ public:
             li.base_dst_addr = base_addr;
             li.base_dst_name = base_name;
             if (auto *target = link->getTarget()) {
-                li.dst_name = target->getName();
+                // Internal jumps must be given a valid symbol name instead of
+                // their default "i/0xADDRESS"
+                li.dst_name = link->getScope() ==
+                                      Link::LinkScope::SCOPE_INTERNAL_JUMP
+                                  ? symAddrName(target->getAddress())
+                                  : target->getName();
             }
             if (dynamic_cast<PLTLink *>(link)) {
                 li.attrs.addFlag(gtirb::SymAttribute::PltRef);
@@ -413,11 +418,8 @@ public:
             if (dynamic_cast<DataOffsetLink *>(link)) {
                 // The output still functions if DataOffsetLinks are stored as
                 // sym+offsets here, but ddisasm appears makes separate symbols
-                // instead, so keeping these commented out matches behavior best
-                // auto *target = link->getTarget();
-                // li.dst_addr = target->getAddress();
-                // li.dst_offset = link->getTargetAddress() -
-                // target->getAddress();
+                // instead, so creating a separate symbol matches behavior best
+                li.dst_name = symAddrName(*li.dst_addr);
                 if (link->getTarget()->getName() == ".got") {
                     li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
                 }
@@ -528,7 +530,10 @@ public:
                 return nullptr;
             }
             LOG(10, "Creating symbol for " << label(sym_addr, sym_name));
-            if (sym_addr) {
+            if (sym_addr && sym_name) {
+                return module->addSymbol(C, gtirb::Addr(*sym_addr), *sym_name);
+            }
+            else if (sym_addr) {
                 return module->addSymbol(
                     C, gtirb::Addr(*sym_addr), symAddrName(*sym_addr));
             }
@@ -653,82 +658,6 @@ public:
     }
 
     /**
-     * @brief Determine whether an address points to a valid place in the
-     * program.
-     *
-     * @todo This may be an unreliable way to determine whether a chunk of data
-     * is an address and not just a constant.
-     *
-     * @param sym_addr Address to validate
-     * @return true sym_addr points to a region within one of the program
-     * sections
-     * @return false Otherwise.
-     */
-    bool symbolAddrValid(address_t sym_addr) {
-        return eCtx.module->getDataRegionList()->findDataSectionContaining(
-                   sym_addr) != nullptr;
-    }
-
-    /**
-     * @brief Register a DataBlock in a gtirb::ByteInterval.
-     *
-     * @details If the data appears to be a collection of addresses, this
-     * function will divide the data into address-sized blocks before adding
-     * them. Valid address entries will be queued for SymbolicExpression
-     * creation.
-     *
-     * @param interval Byte interval to which the DataBlock will be registered.
-     * @param varAddr Address of the data to register
-     * @param varSize Size of the data to register in bytes
-     */
-    void registerDataChunks(
-        gtirb::ByteInterval *interval, address_t varAddr, size_t varSize) {
-        // Only break the blocks into addresses if the block is divisible by the
-        // address size.
-        size_t chunkSize = (varAddr % sizeof(address_t)) ? varSize
-                                                         : sizeof(address_t);
-        address_t endAddr = varAddr + varSize;
-        address_t intervalAddr = (address_t)(*interval->getAddress());
-        bool isDynamic = eCtx.module->getElfSpace()->getElfMap()->isDynamic();
-        while (varAddr < endAddr) {
-            auto blockSize = endAddr - varAddr;
-            if (blockSize > chunkSize) {
-                blockSize = chunkSize;
-            }
-
-            log_chunk("  .block addr: 0x", std::hex, varAddr);
-            log_chunk("  .block size: 0x", std::hex, blockSize);
-            auto varOffset = varAddr - intervalAddr;
-            auto DataBlock = gtirb::DataBlock::Create(C, blockSize);
-            interval->addBlock(varOffset, DataBlock);
-            block_addrs[varAddr] = blockSize;
-
-            // Add links for data targets
-            // TODO: I am not sure if this is the right way to handle this.
-            // We rely on two assumptions here:
-            // 1. We assume that when Egalito creates address-sized Global and
-            // Data variables, those variables contain addresses and not some
-            // other kind of data.
-            // 2. We assume that an address is valid as long as it resides in a
-            // data section.
-            // These assumptions seem to be holding for the binaries I have
-            // tested, but they may be proven wrong.
-            if (isDynamic && (blockSize == chunkSize)) {
-                auto intervalBegin = interval->bytes_begin<address_t>();
-                auto varBegin = intervalBegin + (varOffset / chunkSize);
-                address_t destAddr = *varBegin;
-
-                if (symbolAddrValid(destAddr)) {
-                    log_chunk("  .dest addr: 0x", std::hex, destAddr);
-                    links.push_back(LinkInfo(varAddr, std::nullopt, destAddr));
-                }
-            }
-
-            varAddr += blockSize;
-        }
-    }
-
-    /**
      * @brief Add data blocks for gaps between byte intervals that have already
      * been registered.
      */
@@ -758,9 +687,11 @@ public:
 
             gtirb::Addr gAddr(blockAddr);
             if (cursor < gAddr) {
+                interval.addBlock<gtirb::DataBlock>(
+                    C, cursor - intervalStart, gAddr - cursor);
                 log_chunk("- filler:");
-                registerDataChunks(
-                    &interval, (address_t)cursor, (size_t)(gAddr - cursor));
+                log_chunk("    start: ", cursor);
+                log_chunk("    end: ", blockAddr);
                 cursor = gAddr + blockSize;
             }
             else {
@@ -781,8 +712,12 @@ public:
             gtirb::Addr intervalAddr = *interval->getAddress();
             gtirb::Addr intervalEnd = intervalAddr + interval->getSize();
             if (intervalEnd > cursor) {
-                registerDataChunks(interval, (address_t)cursor,
-                    (size_t)(intervalEnd - cursor));
+                interval->addBlock<gtirb::DataBlock>(
+                    C, cursor - intervalAddr, intervalEnd - cursor);
+                log_chunk("  - start: ", cursor);
+                log_chunk("    end: ", intervalEnd);
+                log_chunk("    offset: ", cursor - intervalAddr);
+                log_chunk("    size: ", intervalEnd - cursor);
             }
         }
     }
@@ -1034,8 +969,11 @@ public:
             // If the sizes are the same there is nothing to be done
         }
         else if (varSize > 0) {
-            // If a block needs to cover this whole set of bytes, add it now.
-            registerDataChunks(gCtx.byteInterval, varAddr, varSize);
+            // If a block needs to cover this whole set of bytes, add it
+            // now.
+            gCtx.byteInterval->addBlock<gtirb::DataBlock>(
+                C, varAddr - eCtx.section->getAddress(), varSize);
+            block_addrs[varAddr] = varSize;
         }
         // If there isn't a set size for the variable,
         // it can just extend from here to the start of the next block.
@@ -1061,7 +999,7 @@ public:
         // - variables with a 'target' symbol
         std::string varName = variable->getName();
         Link *dest = variable->getDest();
-        if (dest) {
+        if (dest && !variable->getIsCopy()) {
             // "Dest" variables don't seem to need a symbol,
             // we just need to create a symbolic reference from this address
             log_chunk("  Type: Link");
@@ -1075,6 +1013,12 @@ public:
             }
             return;
         }
+        else if (variable->getIsCopy()) {
+            variable->setName(variable->getName() + "_copy");
+        }
+        else {
+            variable->setName(LinkInfo::symAddrName(variable->getAddress()));
+        }
 
         // 'Target' variables *seem* to be GOT references,
         // In this case, generate a name for the symbol at this address,
@@ -1085,15 +1029,14 @@ public:
 
         // The symbol has to be created so the symbol forwarding table can be
         // made
-        std::string symName = LinkInfo::symAddrName(variable->getAddress());
-        gtirb::Symbol *gSymbol = gCtx.module->addSymbol(
-            C, gtirb::Addr(variable->getAddress()), symName);
+        gtirb::Symbol *gSymbol = LinkInfo::create_symbol(
+            variable->getAddress(), variable->getName(), C, gCtx.module);
 
         log_chunk("  Type: Target");
         log_chunk("  Target name: ", target->getName());
         log_chunk("  Target addr: ", target->getAddress());
         log_chunk("  Target type: ", target->getType());
-        log_chunk("  Symbol name: ", symName);
+        log_chunk("  Symbol name: ", gSymbol->getName());
 
         // TODO: Deal with aliases?
 
@@ -1110,8 +1053,8 @@ public:
             gCtx.addSymbolForwarding(gSymbol, &*existingTargets.begin());
         }
         else {
-            gtirb::Symbol *gTarget = gCtx.module->addSymbol(
-                C, target->getName());
+            gtirb::Symbol *gTarget = LinkInfo::create_symbol(
+                std::nullopt, target->getName(), C, gCtx.module);
             gCtx.addSymbolInfo(gTarget, target->getSize(),
                 eSymTypeStr(target->getType()),
                 eSymBindingStr(target->getBind()), "DEFAULT",
@@ -1133,18 +1076,19 @@ public:
         // Ensure a data block will start at this address
         registerDataBlock(variable->getAddress(), variable->getSize());
 
-        // TODO:  globalVariable can hold either 'symbol' or 'dymamicSymbol'
-        // Dynamic symbols are handled through externalSymbol, so are not added
-        // here
-        Symbol *target = variable->getSymbol();
-        if (!target) {
-            log_chunk("  Dynamic: true");
-            return;
+        // Dynamic symbols are handled through externalSymbol, except in cases
+        // where binaries are expected to export symbols.
+        if (auto *dynSym = variable->getDynamicSymbol()) {
+            // Make sure at least one instance of the symbol exists
+            auto existingTargets = gCtx.module->findSymbols(dynSym->getName());
+            if (existingTargets.begin() != existingTargets.end()) {
+                return;
+            }
         }
-        assert(target);
 
-        gtirb::Symbol *gSymbol = gCtx.module->addSymbol(
-            C, gtirb::Addr(variable->getAddress()), variable->getName());
+        Symbol *target = variable->getNonNullSymbol();
+        gtirb::Symbol *gSymbol = LinkInfo::create_symbol(
+            variable->getAddress(), variable->getName(), C, gCtx.module);
 
         gCtx.addSymbolInfo(gSymbol, variable->getSize(),
             eSymTypeStr(target->getType()), eSymBindingStr(target->getBind()),
@@ -1224,8 +1168,8 @@ public:
             // In case of fuzzyfunc, make sure we use proper assembly naming
             std::replace(symName.begin(), symName.end(), '-', '_');
         }
-        gtirb::Symbol *gSymbol = gCtx.module->addSymbol(
-            C, gtirb::Addr(addr), symName);
+        gtirb::Symbol *gSymbol = LinkInfo::create_symbol(
+            addr, symName, C, gCtx.module);
         gCtx.functionId = gCtx.assignFunctionId(gSymbol);
         gCtx.addSymbolInfo(
             gSymbol, symSize, eSymTypeStr(symType), eSymBindingStr(symBind));
@@ -1261,6 +1205,23 @@ public:
         log_chunk("  Instructions:");
         recurse<Instruction *>(block);
         gCtx.codeBlock = nullptr;
+    }
+
+    /**
+     * @brief Determine whether an address points to a valid place in the
+     * program.
+     *
+     * @todo This may be an unreliable way to determine whether a chunk of data
+     * is an address and not just a constant.
+     *
+     * @param sym_addr Address to validate
+     * @return true sym_addr points to a region within one of the program
+     * sections
+     * @return false Otherwise.
+     */
+    bool symbolAddrValid(address_t sym_addr) {
+        return eCtx.module->getDataRegionList()->findDataSectionContaining(
+                   sym_addr) != nullptr;
     }
 
     /**
@@ -1352,7 +1313,8 @@ public:
     void visit(ExternalSymbol *eSymbol) {
         // Just adding a symbol with this name appears to be enough
         log_chunk("- Chunk: !externalSymbol ", eSymbol->getName());
-        gtirb::Symbol *gSymbol = gCtx.module->addSymbol(C, eSymbol->getName());
+        gtirb::Symbol *gSymbol = LinkInfo::create_symbol(
+            std::nullopt, eSymbol->getName(), C, gCtx.module);
         gCtx.addSymbolInfo(gSymbol, eSymbol->getSize(),
             eSymTypeStr(eSymbol->getType()),
             eSymBindingStr(eSymbol->getBind()));
@@ -1391,7 +1353,7 @@ public:
         log_chunk("- Chunk: !trampoline ", name);
         log_chunk("  Location: ", trampoline->getAddress());
         log_chunk("  GotPLTEntry: ", trampoline->getGotPLTEntry());
-        gCtx.module->addSymbol(C, name);
+        LinkInfo::create_symbol(std::nullopt, name, C, gCtx.module);
     }
 
     void visit(JumpTableEntry *jumpTableEntry) {
