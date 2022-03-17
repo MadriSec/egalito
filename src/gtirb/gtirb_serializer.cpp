@@ -514,6 +514,19 @@ public:
         }
 
         /**
+         * @brief Check if a symbol name is using Egalito's internal jump
+         * syntax.
+         *
+         * @param symName Symbol name to check
+         * @return true Symbol name contains invalid '/' character used in
+         * Egalito's internal jump names
+         * @return false Otherwise
+         */
+        static bool symbolNameIsIJump(std::string symName) {
+            return symName.find('/') != std::string::npos;
+        }
+
+        /**
          * @brief Create a gtirb symbol with the name and address matching
          * the link's destination
          *
@@ -530,7 +543,7 @@ public:
                 return nullptr;
             }
             LOG(10, "Creating symbol for " << label(sym_addr, sym_name));
-            if (sym_addr && sym_name) {
+            if (sym_addr && sym_name && !symbolNameIsIJump(*sym_name)) {
                 return module->addSymbol(C, gtirb::Addr(*sym_addr), *sym_name);
             }
             else if (sym_addr) {
