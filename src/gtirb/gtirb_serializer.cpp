@@ -400,12 +400,7 @@ public:
             li.base_dst_addr = base_addr;
             li.base_dst_name = base_name;
             if (auto *target = link->getTarget()) {
-                // Internal jumps must be given a valid symbol name instead of
-                // their default "i/0xADDRESS"
-                li.dst_name = link->getScope() ==
-                                      Link::LinkScope::SCOPE_INTERNAL_JUMP
-                                  ? symAddrName(target->getAddress())
-                                  : target->getName();
+                li.dst_name = target->getName();
             }
             if (dynamic_cast<PLTLink *>(link)) {
                 li.attrs.addFlag(gtirb::SymAttribute::PltRef);
