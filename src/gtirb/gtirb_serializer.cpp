@@ -971,8 +971,7 @@ public:
             // If the sizes are the same there is nothing to be done
         }
         else if (varSize > 0) {
-            // If a block needs to cover this whole set of bytes, add it
-            // now.
+            // If a block needs to cover this whole set of bytes, add it now.
             gCtx.byteInterval->addBlock<gtirb::DataBlock>(
                 C, varAddr - eCtx.section->getAddress(), varSize);
             block_addrs[varAddr] = varSize;
@@ -1016,6 +1015,8 @@ public:
             return;
         }
         else if (variable->getIsCopy()) {
+            // This is not necessary for a working binary, but it is useful to
+            // differentiate between target vars and copy relocs for debugging
             variable->setName(variable->getName() + "_copy");
         }
         else {
@@ -1235,11 +1236,13 @@ public:
     void addOperandLinks(SemanticImpl *semantic, address_t inst_addr) {
         assert(eCtx.function != nullptr);
 
-        if (eCtx.module->getElfSpace()->getElfMap()->isDynamic()) {
+        // Only try performing this linking for non-PIE executables
+        if (!eCtx.module->getElfSpace()->getElfMap()->isExecutable()) {
             return;
         }
         auto ins_asm = semantic->getAssembly();
         auto ins_ops = ins_asm->getAsmOperands();
+
         for (size_t i = 0; i < ins_ops->getOpCount(); i++) {
             auto op = ins_ops->getOperands()[i];
             address_t sym_addr = 0;
