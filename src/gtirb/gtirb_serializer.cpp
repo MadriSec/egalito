@@ -1313,6 +1313,9 @@ public:
             links.push_back(LinkInfo::from_link(
                 instrAddr + op_offset, link, eCtx.function->getName()));
         }
+        else if (auto *si = dynamic_cast<SemanticImpl *>(semantic)) {
+            addOperandLinks(si, instrAddr);
+        }
     }
 
     void visit(ExternalSymbol *eSymbol) {
