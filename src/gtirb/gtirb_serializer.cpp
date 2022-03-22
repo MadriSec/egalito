@@ -419,6 +419,11 @@ public:
                     li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
                 }
             }
+            if (auto extSymLink = dynamic_cast<ExternalSymbolLink *>(link)) {
+                auto extSym = extSymLink->getExternalSymbol();
+                li.dst_name = extSym->getName();
+                li.dst_addr = std::nullopt;
+            }
             // TODO: How do each of these map onto gtirb constructs?
             // if (dynamic_cast<JumpTableLink *>(link)) {
             //     This might map onto symAddrAddr, at least in the one test
@@ -1029,10 +1034,8 @@ public:
                 log_chunk("  Dest name: ", dest->getTarget()->getName());
             }
             log_chunk("  Dest addr: ", dest->getTargetAddress());
-            if (dest->getTarget() && dest->getTargetAddress()) {
-                links.push_back(LinkInfo::from_link(
-                    variable->getAddress(), dest, variable->getName()));
-            }
+            links.push_back(LinkInfo::from_link(
+                variable->getAddress(), dest, variable->getName()));
             return;
         }
         else if (variable->getIsCopy()) {
