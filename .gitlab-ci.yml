@@ -168,6 +168,20 @@ package-ubuntu18:
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static
 
+package-ubuntu20:
+  image: $UBUNTU20_IMAGE
+  needs: [build-ubuntu20]
+  stage: package
+  artifacts:
+    paths:
+      - '*.deb'
+  script:
+    - apt update && apt install -y cmake
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static
+
 test-package-ubuntu18:
   stage: test-package
   image: $UBUNTU18_IMAGE
