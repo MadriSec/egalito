@@ -424,6 +424,12 @@ public:
                 li.dst_name = extSym->getName();
                 li.dst_addr = std::nullopt;
             }
+            if (auto extSymLink = dynamic_cast<InternalAndExternalDataLink *>(
+                    link)) {
+                auto extSym = extSymLink->getExternalSymbol();
+                li.dst_name = extSym->getName();
+                li.dst_addr = std::nullopt;
+            }
             // TODO: How do each of these map onto gtirb constructs?
             // if (dynamic_cast<JumpTableLink *>(link)) {
             //     This might map onto symAddrAddr, at least in the one test
