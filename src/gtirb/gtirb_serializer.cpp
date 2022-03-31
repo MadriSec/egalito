@@ -675,7 +675,7 @@ public:
             link.base_dst_addr, link.base_dst_name, gModule);
     }
 
-    void tryAddingDataBlock(
+    void try_adding_data_block(
         gtirb::ByteInterval *interval, address_t blockAddr, size_t blockSize) {
         auto section = eCtx.section
                            ? eCtx.section
@@ -830,7 +830,7 @@ public:
 
             gtirb::Addr gAddr(blockAddr);
             if (cursor < gAddr) {
-                tryAddingDataBlock(
+                try_adding_data_block(
                     &interval, (address_t)cursor, (size_t)(gAddr - cursor));
                 log_chunk("- filler:");
                 log_chunk("    start: ", cursor);
@@ -855,7 +855,7 @@ public:
             gtirb::Addr intervalAddr = *interval->getAddress();
             gtirb::Addr intervalEnd = intervalAddr + interval->getSize();
             if (intervalEnd > cursor) {
-                tryAddingDataBlock(interval, (address_t)cursor,
+                try_adding_data_block(interval, (address_t)cursor,
                     (size_t)(intervalEnd - cursor));
                 log_chunk("  - start: ", cursor);
                 log_chunk("    end: ", intervalEnd);
@@ -1008,7 +1008,7 @@ public:
         }
         else if (varSize > 0) {
             // If a block needs to cover this whole set of bytes, add it now.
-            tryAddingDataBlock(gCtx.byteInterval, varAddr, varSize);
+            try_adding_data_block(gCtx.byteInterval, varAddr, varSize);
             block_addrs[varAddr] = varSize;
         }
         // If there isn't a set size for the variable,
