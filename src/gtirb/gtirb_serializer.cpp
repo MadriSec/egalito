@@ -675,6 +675,15 @@ public:
             link.base_dst_addr, link.base_dst_name, gModule);
     }
 
+    /**
+     * @brief Wrapper function for adding a data block to a byte interval.
+     * @details Prefer using this function to calling addBlock, since this
+     * function prevents adding invalid data blocks.
+     *
+     * @param interval Byte interval to add the block to.
+     * @param blockAddr Program-relative address of the data block.
+     * @param blockSize Size of the data block in bytes.
+     */
     void try_adding_data_block(
         gtirb::ByteInterval *interval, address_t blockAddr, size_t blockSize) {
         auto section = eCtx.section
