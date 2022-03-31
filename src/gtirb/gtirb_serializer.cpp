@@ -587,6 +587,27 @@ public:
     std::map<address_t, size_t> block_addrs;
 
     /**
+     * @brief Abstraction of LinkInfo::create_symbol that prevents duplicate
+     * symbols from being created.
+     *
+     * @param sym_addr The address of the symbol to create
+     * @param sym_name The name of the symbol to create
+     * @param module The module in which the gtirb symbol would reside
+     * @return gtirb::Symbol *A symbol with the address and name provided
+     */
+    gtirb::Symbol *get_unique_symbol(std::optional<address_t> sym_addr,
+        std::string sym_name, gtirb::Module *module) {
+        for (gtirb::Symbol &symbol : module->findSymbols(sym_name)) {
+            if (!sym_addr || (*symbol.getAddress() == gtirb::Addr(*sym_addr))) {
+                return &symbol;
+            }
+        }
+
+        // Create the symbol if a matching one does not exist
+        return LinkInfo::create_symbol(sym_addr, sym_name, C, module);
+    }
+
+    /**
      * @brief Get the symbol associated with the given name/address if it
      * exists. Create a new symbol if necessary.
      *
@@ -1032,8 +1053,8 @@ public:
 
         // The symbol has to be created so the symbol forwarding table can be
         // made
-        gtirb::Symbol *gSymbol = LinkInfo::create_symbol(
-            variable->getAddress(), variable->getName(), C, gCtx.module);
+        gtirb::Symbol *gSymbol = get_unique_symbol(
+            variable->getAddress(), variable->getName(), gCtx.module);
 
         log_chunk("  Type: Target");
         log_chunk("  Target name: ", target->getName());
@@ -1056,8 +1077,8 @@ public:
             gCtx.addSymbolForwarding(gSymbol, &*existingTargets.begin());
         }
         else {
-            gtirb::Symbol *gTarget = LinkInfo::create_symbol(
-                std::nullopt, target->getName(), C, gCtx.module);
+            gtirb::Symbol *gTarget = get_unique_symbol(
+                std::nullopt, target->getName(), gCtx.module);
             gCtx.addSymbolInfo(gTarget, target->getSize(),
                 eSymTypeStr(target->getType()),
                 eSymBindingStr(target->getBind()), "DEFAULT",
@@ -1090,8 +1111,8 @@ public:
         }
 
         Symbol *target = variable->getNonNullSymbol();
-        gtirb::Symbol *gSymbol = LinkInfo::create_symbol(
-            variable->getAddress(), variable->getName(), C, gCtx.module);
+        gtirb::Symbol *gSymbol = get_unique_symbol(
+            variable->getAddress(), variable->getName(), gCtx.module);
 
         gCtx.addSymbolInfo(gSymbol, variable->getSize(),
             eSymTypeStr(target->getType()), eSymBindingStr(target->getBind()),
@@ -1171,8 +1192,7 @@ public:
             // In case of fuzzyfunc, make sure we use proper assembly naming
             std::replace(symName.begin(), symName.end(), '-', '_');
         }
-        gtirb::Symbol *gSymbol = LinkInfo::create_symbol(
-            addr, symName, C, gCtx.module);
+        gtirb::Symbol *gSymbol = get_unique_symbol(addr, symName, gCtx.module);
         gCtx.functionId = gCtx.assignFunctionId(gSymbol);
         gCtx.addSymbolInfo(
             gSymbol, symSize, eSymTypeStr(symType), eSymBindingStr(symBind));
@@ -1263,8 +1283,8 @@ public:
     void visit(ExternalSymbol *eSymbol) {
         // Just adding a symbol with this name appears to be enough
         log_chunk("- Chunk: !externalSymbol ", eSymbol->getName());
-        gtirb::Symbol *gSymbol = LinkInfo::create_symbol(
-            std::nullopt, eSymbol->getName(), C, gCtx.module);
+        gtirb::Symbol *gSymbol = get_unique_symbol(
+            std::nullopt, eSymbol->getName(), gCtx.module);
         gCtx.addSymbolInfo(gSymbol, eSymbol->getSize(),
             eSymTypeStr(eSymbol->getType()),
             eSymBindingStr(eSymbol->getBind()));
@@ -1303,7 +1323,7 @@ public:
         log_chunk("- Chunk: !trampoline ", name);
         log_chunk("  Location: ", trampoline->getAddress());
         log_chunk("  GotPLTEntry: ", trampoline->getGotPLTEntry());
-        LinkInfo::create_symbol(std::nullopt, name, C, gCtx.module);
+        get_unique_symbol(std::nullopt, name, gCtx.module);
     }
 
     void visit(JumpTableEntry *jumpTableEntry) {
