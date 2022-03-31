@@ -675,6 +675,25 @@ public:
             link.base_dst_addr, link.base_dst_name, gModule);
     }
 
+    void tryAddingDataBlock(
+        gtirb::ByteInterval *interval, address_t blockAddr, size_t blockSize) {
+        auto section = eCtx.section
+                           ? eCtx.section
+                           : eCtx.module->getDataRegionList()
+                                 ->findDataSectionContaining(blockAddr);
+
+        // Do not add data blocks for dynamic sections.
+        // TODO: We may not want to skip unknown sections too.
+        if (section && ((section->getType() == DataSection::TYPE_DYNAMIC) ||
+                           (section->getType() == DataSection::TYPE_UNKNOWN))) {
+            log_chunk("    Dynamic: True");
+            return;
+        }
+        gtirb::Addr intervalStart = *interval->getAddress();
+        interval->addBlock<gtirb::DataBlock>(
+            C, gtirb::Addr(blockAddr) - intervalStart, blockSize);
+    }
+
     void visit(Program *eProgram) {
         eCtx.program = eProgram;
 
@@ -811,8 +830,8 @@ public:
 
             gtirb::Addr gAddr(blockAddr);
             if (cursor < gAddr) {
-                interval.addBlock<gtirb::DataBlock>(
-                    C, cursor - intervalStart, gAddr - cursor);
+                tryAddingDataBlock(
+                    &interval, (address_t)cursor, (size_t)(gAddr - cursor));
                 log_chunk("- filler:");
                 log_chunk("    start: ", cursor);
                 log_chunk("    end: ", blockAddr);
@@ -836,8 +855,8 @@ public:
             gtirb::Addr intervalAddr = *interval->getAddress();
             gtirb::Addr intervalEnd = intervalAddr + interval->getSize();
             if (intervalEnd > cursor) {
-                interval->addBlock<gtirb::DataBlock>(
-                    C, cursor - intervalAddr, intervalEnd - cursor);
+                tryAddingDataBlock(interval, (address_t)cursor,
+                    (size_t)(intervalEnd - cursor));
                 log_chunk("  - start: ", cursor);
                 log_chunk("    end: ", intervalEnd);
                 log_chunk("    offset: ", cursor - intervalAddr);
@@ -956,6 +975,7 @@ public:
         recurse<GlobalVariable *>(eSection->getGlobalVariables());
 
         gCtx.byteInterval = nullptr;
+        eCtx.section = nullptr;
     }
 
     /**
@@ -967,11 +987,6 @@ public:
      * important
      */
     void registerDataBlock(address_t varAddr, size_t varSize) {
-        // Do not register data blocks for non-data sections
-        if ((eCtx.section->getType() == DataSection::TYPE_DYNAMIC) ||
-            (eCtx.section->getType() == DataSection::TYPE_UNKNOWN)) {
-            return;
-        }
         // Check if we have to create a block at this address
         size_t curSize = block_addrs[varAddr];
         if (curSize > 0 && varSize > 0) {
@@ -993,8 +1008,7 @@ public:
         }
         else if (varSize > 0) {
             // If a block needs to cover this whole set of bytes, add it now.
-            gCtx.byteInterval->addBlock<gtirb::DataBlock>(
-                C, varAddr - eCtx.section->getAddress(), varSize);
+            tryAddingDataBlock(gCtx.byteInterval, varAddr, varSize);
             block_addrs[varAddr] = varSize;
         }
         // If there isn't a set size for the variable,
@@ -1201,6 +1215,7 @@ public:
 
         gCtx.byteInterval = nullptr;
         eCtx.function = nullptr;
+        eCtx.section = nullptr;
     }
 
     void visit(Block *block) {
