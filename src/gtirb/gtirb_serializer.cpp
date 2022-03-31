@@ -839,11 +839,11 @@ public:
 
             gtirb::Addr gAddr(blockAddr);
             if (cursor < gAddr) {
-                try_adding_data_block(
-                    &interval, (address_t)cursor, (size_t)(gAddr - cursor));
                 log_chunk("- filler:");
                 log_chunk("    start: ", cursor);
                 log_chunk("    end: ", blockAddr);
+                try_adding_data_block(
+                    &interval, (address_t)cursor, (size_t)(gAddr - cursor));
                 cursor = gAddr + blockSize;
             }
             else {
@@ -864,12 +864,12 @@ public:
             gtirb::Addr intervalAddr = *interval->getAddress();
             gtirb::Addr intervalEnd = intervalAddr + interval->getSize();
             if (intervalEnd > cursor) {
-                try_adding_data_block(interval, (address_t)cursor,
-                    (size_t)(intervalEnd - cursor));
                 log_chunk("  - start: ", cursor);
                 log_chunk("    end: ", intervalEnd);
                 log_chunk("    offset: ", cursor - intervalAddr);
                 log_chunk("    size: ", intervalEnd - cursor);
+                try_adding_data_block(interval, (address_t)cursor,
+                    (size_t)(intervalEnd - cursor));
             }
         }
     }
