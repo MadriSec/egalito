@@ -587,27 +587,6 @@ public:
     std::map<address_t, size_t> block_addrs;
 
     /**
-     * @brief Abstraction of LinkInfo::create_symbol that prevents duplicate
-     * symbols from being created.
-     *
-     * @param sym_addr The address of the symbol to create
-     * @param sym_name The name of the symbol to create
-     * @param module The module in which the gtirb symbol would reside
-     * @return gtirb::Symbol *A symbol with the address and name provided
-     */
-    gtirb::Symbol *get_unique_symbol(std::optional<address_t> sym_addr,
-        std::string sym_name, gtirb::Module *module) {
-        for (gtirb::Symbol &symbol : module->findSymbols(sym_name)) {
-            if (!sym_addr || (*symbol.getAddress() == gtirb::Addr(*sym_addr))) {
-                return &symbol;
-            }
-        }
-
-        // Create the symbol if a matching one does not exist
-        return LinkInfo::create_symbol(sym_addr, sym_name, C, module);
-    }
-
-    /**
      * @brief Get the symbol associated with the given name/address if it
      * exists. Create a new symbol if necessary.
      *
@@ -616,7 +595,7 @@ public:
      * @param module The module in which the gtirb symbol would reside
      * @return gtirb::Symbol *A symbol with the address or name provided
      */
-    gtirb::Symbol *get_symbol_from_link(std::optional<address_t> sym_addr,
+    gtirb::Symbol *get_canonical_symbol(std::optional<address_t> sym_addr,
         std::optional<std::string> sym_name, gtirb::Module *module) {
         // If there is a symbol with a matching name, use it even if the
         // address is wrong
@@ -656,7 +635,7 @@ public:
      * destination (or nullptr)
      */
     gtirb::Symbol *get_dst_from_link(LinkInfo &link, gtirb::Module *gModule) {
-        return get_symbol_from_link(link.dst_addr, link.dst_name, gModule);
+        return get_canonical_symbol(link.dst_addr, link.dst_name, gModule);
     }
 
     /**
@@ -671,7 +650,7 @@ public:
      * base destination (or nullptr)
      */
     gtirb::Symbol *get_base_from_link(LinkInfo &link, gtirb::Module *gModule) {
-        return get_symbol_from_link(
+        return get_canonical_symbol(
             link.base_dst_addr, link.base_dst_name, gModule);
     }
 
@@ -1076,7 +1055,7 @@ public:
 
         // The symbol has to be created so the symbol forwarding table can be
         // made
-        gtirb::Symbol *gSymbol = get_unique_symbol(
+        gtirb::Symbol *gSymbol = get_canonical_symbol(
             variable->getAddress(), variable->getName(), gCtx.module);
 
         log_chunk("  Type: Target");
@@ -1100,7 +1079,7 @@ public:
             gCtx.addSymbolForwarding(gSymbol, &*existingTargets.begin());
         }
         else {
-            gtirb::Symbol *gTarget = get_unique_symbol(
+            gtirb::Symbol *gTarget = get_canonical_symbol(
                 std::nullopt, target->getName(), gCtx.module);
             gCtx.addSymbolInfo(gTarget, target->getSize(),
                 eSymTypeStr(target->getType()),
@@ -1134,7 +1113,7 @@ public:
         }
 
         Symbol *target = variable->getNonNullSymbol();
-        gtirb::Symbol *gSymbol = get_unique_symbol(
+        gtirb::Symbol *gSymbol = get_canonical_symbol(
             variable->getAddress(), variable->getName(), gCtx.module);
 
         gCtx.addSymbolInfo(gSymbol, variable->getSize(),
@@ -1215,7 +1194,8 @@ public:
             // In case of fuzzyfunc, make sure we use proper assembly naming
             std::replace(symName.begin(), symName.end(), '-', '_');
         }
-        gtirb::Symbol *gSymbol = get_unique_symbol(addr, symName, gCtx.module);
+        gtirb::Symbol *gSymbol = get_canonical_symbol(
+            addr, symName, gCtx.module);
         gCtx.functionId = gCtx.assignFunctionId(gSymbol);
         gCtx.addSymbolInfo(
             gSymbol, symSize, eSymTypeStr(symType), eSymBindingStr(symBind));
@@ -1307,7 +1287,7 @@ public:
     void visit(ExternalSymbol *eSymbol) {
         // Just adding a symbol with this name appears to be enough
         log_chunk("- Chunk: !externalSymbol ", eSymbol->getName());
-        gtirb::Symbol *gSymbol = get_unique_symbol(
+        gtirb::Symbol *gSymbol = get_canonical_symbol(
             std::nullopt, eSymbol->getName(), gCtx.module);
         gCtx.addSymbolInfo(gSymbol, eSymbol->getSize(),
             eSymTypeStr(eSymbol->getType()),
@@ -1347,7 +1327,7 @@ public:
         log_chunk("- Chunk: !trampoline ", name);
         log_chunk("  Location: ", trampoline->getAddress());
         log_chunk("  GotPLTEntry: ", trampoline->getGotPLTEntry());
-        get_unique_symbol(std::nullopt, name, gCtx.module);
+        get_canonical_symbol(std::nullopt, name, gCtx.module);
     }
 
     void visit(JumpTableEntry *jumpTableEntry) {
