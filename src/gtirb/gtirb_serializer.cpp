@@ -671,9 +671,7 @@ public:
                                  ->findDataSectionContaining(blockAddr);
 
         // Do not add data blocks for dynamic sections.
-        // TODO: We may not want to skip unknown sections too.
-        if (section && ((section->getType() == DataSection::TYPE_DYNAMIC) ||
-                           (section->getType() == DataSection::TYPE_UNKNOWN))) {
+        if (section && (section->getType() == DataSection::TYPE_DYNAMIC)) {
             log_chunk("    Dynamic: True");
             return;
         }
