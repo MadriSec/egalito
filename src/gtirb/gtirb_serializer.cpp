@@ -402,15 +402,16 @@ public:
             if (auto *target = link->getTarget()) {
                 li.dst_name = target->getName();
             }
+
             if (dynamic_cast<PLTLink *>(link)) {
                 li.attrs.addFlag(gtirb::SymAttribute::PltRef);
             }
-            if (dynamic_cast<OffsetLink *>(link)) {
+            else if (dynamic_cast<OffsetLink *>(link)) {
                 auto *target = link->getTarget();
                 li.dst_addr = target->getAddress();
                 li.dst_offset = link->getTargetAddress() - target->getAddress();
             }
-            if (dynamic_cast<DataOffsetLink *>(link)) {
+            else if (dynamic_cast<DataOffsetLink *>(link)) {
                 // The output still functions if DataOffsetLinks are stored as
                 // sym+offsets here, but ddisasm appears makes separate symbols
                 // instead, so creating a separate symbol matches behavior best
@@ -419,13 +420,14 @@ public:
                     li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
                 }
             }
-            if (auto extSymLink = dynamic_cast<ExternalSymbolLink *>(link)) {
+            else if (auto extSymLink = dynamic_cast<ExternalSymbolLink *>(
+                         link)) {
                 auto extSym = extSymLink->getExternalSymbol();
                 li.dst_name = extSym->getName();
                 li.dst_addr = std::nullopt;
             }
-            if (auto extSymLink = dynamic_cast<InternalAndExternalDataLink *>(
-                    link)) {
+            else if (auto extSymLink =
+                         dynamic_cast<InternalAndExternalDataLink *>(link)) {
                 auto extSym = extSymLink->getExternalSymbol();
                 li.dst_name = extSym->getName();
                 li.dst_addr = std::nullopt;
