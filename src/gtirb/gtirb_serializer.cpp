@@ -412,11 +412,21 @@ public:
                 li.dst_offset = link->getTargetAddress() - target->getAddress();
             }
             else if (dynamic_cast<DataOffsetLink *>(link)) {
-                // The output still functions if DataOffsetLinks are stored as
-                // sym+offsets here, but ddisasm appears makes separate symbols
-                // instead, so creating a separate symbol matches behavior best
+                // Storing all links as base + offset causes some binaries to
+                // segfault, and does not match the behavior of ddisasm.
+                // Creating a separate symbol matches behavior best.
                 li.dst_name = symAddrName(*li.dst_addr);
-                if (link->getTarget()->getName() == ".got") {
+
+                // We do not make data blocks for dynamic sections, so we need
+                // to use symbol offsets to reach the target
+                auto *section = dynamic_cast<DataSection *>(link->getTarget());
+                if (section->getType() == DataSection::TYPE_DYNAMIC) {
+                    li.dst_addr = section->getAddress();
+                    li.dst_offset = link->getTargetAddress() -
+                                    section->getAddress();
+                }
+
+                if (section->getName() == ".got") {
                     li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
                 }
             }
