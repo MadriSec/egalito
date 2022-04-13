@@ -226,8 +226,6 @@ public:
         gtirb::CodeBlock *codeBlock = nullptr;
         gtirb::Section *section = nullptr;
         std::optional<gtirb::UUID> functionId = std::nullopt;
-        // Used to reassign function addresses
-        address_t function_address = 0;
 
         // Originally this was just a place to store gtirb-related context while
         // traversing But dependence on the module context made it a reasonable
@@ -595,8 +593,6 @@ public:
     // If the block is already created this maps the address to the size of the
     // block Otherwise, it maps the address to a block of size 0
     std::map<address_t, size_t> block_addrs;
-    // \brief Map Egalito addresses to GTIRB addresses for relocation
-    std::map<address_t, address_t> egal_to_gtirb_addrs;
 
     /**
      * @brief Check if a symbol name is using Egalito's internal jump
@@ -608,76 +604,6 @@ public:
      * @return false Otherwise
      */
     bool symbolNameIsIJump(std::string symName) {
-        return symName.find('/') != std::string::npos;
-    }
-
-    /**
-     * @brief Get a valid GTIRB symbol name from a symbol name and/or address
-     *
-     * @param sym_name Name of the symbol. May be an internal jump or fuzzyfunc.
-     * @param sym_addr Address of the symbol
-     * @return std::string Valid symbol name
-     */
-    std::string get_gtirb_name(std::optional<std::string> sym_name,
-        std::optional<address_t> sym_addr) {
-        if (sym_name && !symbolNameIsIJump(*sym_name)) {
-            // For fuzzyfunc, make sure we replace the invalid '-' char
-            std::replace(sym_name->begin(), sym_name->end(), '-', '_');
-            return *sym_name;
-        }
-        return LinkInfo::symAddrName(*sym_addr);
-    }
-
-    /**
-     * @brief Get a valid gtirb symbol address from an egalito symbol address
-     * @details This function is used to account for function relocation
-     *
-     * @param sym_addr Egalito symbol address
-     * @return std::optional<address_t> Gtirb symbol address
-     */
-    std::optional<address_t> get_gtirb_address(
-        std::optional<address_t> sym_addr) {
-        if (!sym_addr) {
-            return sym_addr;
-        }
-
-        // If the original address is in a code section, relocate it
-        std::optional<address_t> ret_addr = std::nullopt;
-        auto section = eCtx.module->getDataRegionList()
-                           ->findDataSectionContaining(*sym_addr);
-        if (section && section->isCode()) {
-            // Work backwards to find the first function containing the symbol
-            // address.
-            auto egalAddr = *sym_addr;
-            auto offset = 0;
-            while (!egal_to_gtirb_addrs[egalAddr - offset] &&
-                   (egalAddr - offset > section->getAddress())) {
-                offset++;
-            }
-            auto gtirb_addr_base = egal_to_gtirb_addrs[egalAddr - offset];
-            if (gtirb_addr_base) {
-                ret_addr = gtirb_addr_base + offset;
-            }
-            else {
-                LOG(0, "Bad GTIRB address for 0x" << std::hex << *sym_addr);
-            }
-        }
-        else {
-            ret_addr = sym_addr;
-        }
-        return ret_addr;
-    }
-
-    /**
-     * @brief Check if a symbol name is using Egalito's internal jump
-     * syntax.
-     *
-     * @param symName Symbol name to check
-     * @return true Symbol name contains invalid '/' character used in
-     * Egalito's internal jump names
-     * @return false Otherwise
-     */
-    inline bool symbolNameIsIJump(std::string symName) {
         return symName.find('/') != std::string::npos;
     }
 
@@ -714,7 +640,6 @@ public:
         }
 
         sym_name = get_gtirb_name(sym_name, sym_addr);
-        sym_addr = get_gtirb_address(sym_addr);
 
         // If there is a symbol with a matching name, use it even if the
         // address is wrong
@@ -886,9 +811,8 @@ public:
             auto byteIntervals = gModule->findByteIntervalsOn(
                 gtirb::Addr(linkInfo.src_addr));
             auto interval = byteIntervals.begin();
-            // Ensure that there is exactly one interval on this address
+            // Ensure that there is at at least one interval on this address
             assert(interval != byteIntervals.end());
-            assert(std::next(interval) == byteIntervals.end());
             auto offset = gtirb::Addr(linkInfo.src_addr) -
                           *interval->getAddress();
             if (base) {
@@ -961,6 +885,8 @@ public:
                 try_adding_data_block(interval, (address_t)cursor,
                     (size_t)(intervalEnd - cursor));
             }
+            // Remove the interval addresses to prevent overlap
+            interval->setAddress(std::nullopt);
         }
 
         // This has to come after parsing the module,
@@ -1042,10 +968,6 @@ public:
         gCtx.section = gSection;
         eCtx.section = eSection;
         gCtx.setSectionAlignment(eSection->getAlignment());
-
-        // Add functions at the end of the program to prevent overlap
-        gCtx.function_address += std::max(
-            eSection->getRange().getEnd(), gCtx.function_address);
 
         if (!eSection->isCode()) {
             // Only add byte intervals for non-code sections. Code sections will
@@ -1261,12 +1183,13 @@ public:
 
     void visit(Function *function) {
         log_chunk("- Chunk: !function ", function->getName());
-        log_chunk("  Egalito Addr: ", function->getAddress());
-        log_chunk("  Gtirb Addr: ", gCtx.function_address);
+        log_chunk("  Addr: ", function->getAddress());
         log_chunk("  Position: ", function->getPosition()->get());
         log_chunk("  Size: ", function->getSize());
 
         eCtx.section = getEgalitoSection(function);
+
+        auto addr = function->getAddress();
 
         auto sections = gCtx.module->findSections(eCtx.section->getName());
         // The section must exist
@@ -1276,9 +1199,8 @@ public:
 
         gCtx.section = &*sections.begin();
 
-        egal_to_gtirb_addrs[function->getAddress()] = gCtx.function_address;
         gCtx.byteInterval = gCtx.section->addByteInterval(
-            C, gtirb::Addr(gCtx.function_address), function->getSize());
+            C, gtirb::Addr(addr), function->getSize());
 
         log_chunk("  Symbol Section: ", gCtx.section->getName());
         eCtx.function = function;
@@ -1301,18 +1223,17 @@ public:
         }
 
         gtirb::Symbol *gSymbol = get_canonical_symbol(
-            gCtx.function_address, symName, gCtx.module);
+            addr, symName, gCtx.module);
         gCtx.functionId = gCtx.assignFunctionId(gSymbol);
         gCtx.addSymbolInfo(
             gSymbol, symSize, eSymTypeStr(symType), eSymBindingStr(symBind));
 
         recurse<Block *>(function);
-        gCtx.function_address += symSize;
     }
 
     void visit(Block *block) {
         uint64_t blockOffset = block->getAddress() -
-                               eCtx.function->getAddress();
+                               (uint64_t)*gCtx.byteInterval->getAddress();
         log_chunk("- Block addr: ", block->getAddress());
         log_chunk("  Block size: ", block->getSize());
         log_chunk("  Block offset: ", blockOffset);
@@ -1327,7 +1248,7 @@ public:
         gtirb::CodeBlock *codeBlock = gCtx.byteInterval
                                           ->addBlock<gtirb::CodeBlock>(
                                               C, blockOffset, block->getSize());
-        block_addrs[gCtx.function_address + blockOffset] = block->getSize();
+        block_addrs[block->getAddress()] = block->getSize();
 
         gCtx.addBlockToFunction(codeBlock);
 
@@ -1338,11 +1259,10 @@ public:
 
     void visit(Instruction *instruction) {
         // Instructions within functions are deserialized one at a time
-        auto instrAddrEgal = instruction->getAddress();
+        auto instrAddr = instruction->getAddress();
 
-        auto instrOffset = instrAddrEgal - eCtx.function->getAddress();
-
-        auto instrAddrGtirb = gCtx.function_address + instrOffset;
+        auto instrOffset = instrAddr -
+                           (uint64_t)*gCtx.byteInterval->getAddress();
 
         auto intervalBegin = gCtx.byteInterval->bytes_begin<char>();
         auto instrPos = intervalBegin + instrOffset;
@@ -1355,7 +1275,7 @@ public:
 
         log_chunk("- Intruction len: ", data.size());
         if (data.size() > gCtx.byteInterval->getSize() - instrOffset) {
-            std::cerr << "ERROR: Instruction at " << instrAddrEgal
+            std::cerr << "ERROR: Instruction at " << instrAddr
                       << " falls outside of bounds of byte interval"
                       << std::endl;
             return;
@@ -1383,7 +1303,7 @@ public:
             log_chunk("  Link offset: ", op_offset);
 
             links.push_back(LinkInfo::from_link(
-                instrAddrGtirb + op_offset, link, eCtx.function->getName()));
+                instrAddr + op_offset, link, eCtx.function->getName()));
         }
     }
 
