@@ -747,11 +747,8 @@ public:
         auto blocks = interval->findBlocksAt(ref_address);
         if (blocks.begin() == blocks.end()) {
             log_chunk("  Adding block for symbol ", symbol->getName());
-            uint64_t blockOffset = ref_address - *interval->getAddress();
-            auto blockSize = interval->getSize() - blockOffset;
-            block_addrs[(address_t)ref_address] = blockSize;
-            block = try_adding_data_block(
-                interval, (address_t)ref_address, blockSize);
+            block_addrs.insert({address_t(ref_address), 0});
+            block = try_adding_data_block(interval, (address_t)ref_address, 0);
         }
         else {
             block = &*blocks.begin();
@@ -919,6 +916,16 @@ public:
                                                      << " at " << offset);
         }
 
+        // Add symbol referents
+        for (auto &symbol : gModule->symbols_by_addr()) {
+            if (!symbol.getAddress()) {
+                log_chunk("  No address for symbol ", symbol.getName());
+                continue;
+            }
+            gtirb::Addr symAddr = *symbol.getAddress();
+            set_symbol_ref(&symbol, symAddr, gModule);
+        }
+
         // Add data blocks for regions that aren't covered by existing ones
 
         // Keep a pointer to the current location in each byte interval,
@@ -977,16 +984,6 @@ public:
                 try_adding_data_block(interval, (address_t)cursor,
                     (size_t)(intervalEnd - cursor));
             }
-        }
-
-        // Add symbol referents
-        for (auto &symbol : gModule->symbols_by_addr()) {
-            if (!symbol.getAddress()) {
-                log_chunk("  No address for symbol ", symbol.getName());
-                continue;
-            }
-            gtirb::Addr symAddr = *symbol.getAddress();
-            set_symbol_ref(&symbol, symAddr, gModule);
         }
 
         // Remove the interval addresses to allow relocation and prevent overlap
