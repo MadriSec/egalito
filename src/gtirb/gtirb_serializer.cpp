@@ -989,13 +989,9 @@ public:
             set_symbol_ref(&symbol, symAddr, gModule);
         }
 
-        // Remove the interval addresses from code sections to prevent overlap
-        for (auto &[section, cursor] : intervalCursors) {
-            auto gSections = gCtx.module->findSections(section->getName());
-            auto gSection = &*gSections.begin();
-            for (auto &interval : gSection->byte_intervals()) {
-                interval.setAddress(std::nullopt);
-            }
+        // Remove the interval addresses to allow relocation and prevent overlap
+        for (auto &interval : gModule->byte_intervals()) {
+            interval.setAddress(std::nullopt);
         }
 
         // This has to come after parsing the module,
