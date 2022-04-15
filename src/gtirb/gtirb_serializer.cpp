@@ -629,6 +629,54 @@ public:
     }
 
     /**
+     * @brief Get the byte interval with the given address/size if it
+     * exists. Create a new interval if necessary.
+     *
+     * @note This function prevents duplicate byte intervals, but does not
+     * prevent overlapping intervals.
+     *
+     * @param ival_addr Starting address of the byte interval
+     * @param ival_size Size of the byte interval in bytes
+     * @return gtirb::ByteInterval *A byte interval with the specified address
+     * and size. Nullptr if ival_addr does not fall within a section.
+     */
+    gtirb::ByteInterval *get_canonical_interval(
+        address_t ival_addr, size_t ival_size) {
+        assert(gCtx.module);
+        assert(ival_size);
+
+        auto gSection = gCtx.section;
+        if (!gSection) {
+            auto eSection = eCtx.section;
+            if (!eSection) {
+                eSection = eCtx.module->getDataRegionList()
+                               ->findDataSectionContaining(ival_addr);
+            }
+            if (!eSection) {
+                LOG(0, "WARNING: No section containing 0x" << std::hex
+                                                           << ival_addr);
+                return nullptr;
+            }
+            auto sections = gCtx.module->findSections(eSection->getName());
+            // Exactly one section must exist by this name
+            assert(sections.begin() != sections.end());
+            assert(std::next(sections.begin()) == sections.end());
+            gSection = &*sections.begin();
+        }
+
+        auto intervals = gSection->findByteIntervalsAt(gtirb::Addr(ival_addr));
+        for (auto &interval : intervals) {
+            if (interval.getSize() == ival_size) {
+                return &interval;
+            }
+        }
+        interval_addrs[ival_addr] = ival_size;
+        log_chunk("  Byte interval: ", ival_addr, " - ", ival_addr + ival_size);
+        log_chunk("  Byte interval size: ", ival_size);
+        return gSection->addByteInterval(C, gtirb::Addr(ival_addr), ival_size);
+    }
+
+    /**
      * @brief Get the symbol associated with the given name/address if it
      * exists. Create a new symbol if necessary.
      *
@@ -726,6 +774,49 @@ public:
         gtirb::Addr intervalStart = *interval->getAddress();
         return interval->addBlock<gtirb::DataBlock>(
             C, gtirb::Addr(blockAddr) - intervalStart, blockSize);
+    }
+
+    void add_missing_byte_intervals() {
+        assert(eCtx.module);
+
+        // Keep a pointer to the current location in each section,
+        // then run through the created intervals in ascending order,
+        // filling in gaps in the blocks as you go
+        std::unordered_map<DataSection *, address_t> intervalCursors;
+        for (auto &[ivalAddr, ivalSize] : interval_addrs) {
+            auto eSection = eCtx.module->getDataRegionList()
+                                ->findDataSectionContaining(ivalAddr);
+            if (!eSection) {
+                std::cerr << "WARNING: No section containing " << std::hex
+                          << ivalAddr << std::endl;
+                continue;
+            }
+
+            // If there is an existing cursor for this byte interval, use it
+            // Otherwise, advance it from 0 (the default value for
+            // intervalCursors) to the start address of this interval
+            address_t &cursor = intervalCursors[eSection];
+            cursor = std::max(cursor, eSection->getAddress());
+
+            if (cursor < ivalAddr) {
+                get_canonical_interval(cursor, ivalAddr - cursor);
+                cursor = ivalAddr + ivalSize;
+            }
+            else {
+                // If ivalAddr is behind the cursor addr,
+                // that means that the new block falls in the middle of
+                // a previously created one.
+                cursor = std::max(cursor, ivalAddr + ivalSize);
+            }
+        }
+
+        // Add extra intervals to end of code sections
+        for (auto &[section, cursor] : intervalCursors) {
+            address_t sectionEnd = section->getAddress() + section->getSize();
+            if (sectionEnd > cursor) {
+                get_canonical_interval(cursor, sectionEnd - cursor);
+            }
+        }
     }
 
     void visit(Program *eProgram) {
@@ -833,60 +924,8 @@ public:
         recurse<JumpTable *>(eModule->getJumpTableList());
         recurse<Marker *>(eModule->getMarkerList());
 
-        // Add byte intervals for regions that aren't covered by existing ones
-
-        // Keep a pointer to the current location in each section,
-        // then run through the created intervals in ascending order,
-        // filling in gaps in the blocks as you go
-
-        std::unordered_map<DataSection *, gtirb::Addr> intervalCursors;
-        for (auto &[ivalAddr, ivalSize] : interval_addrs) {
-            auto eSection = eModule->getDataRegionList()
-                                ->findDataSectionContaining(ivalAddr);
-            if (!eSection) {
-                std::cerr << "WARNING: No section containing " << std::hex
-                          << ivalAddr << std::endl;
-                continue;
-            }
-            auto sections = gCtx.module->findSections(eSection->getName());
-            auto gSection = &*sections.begin();
-            auto sectionAddr = (gtirb::Addr)eSection->getAddress();
-
-            // If there is an existing cursor for this byte interval, use it
-            // Otherwise, advance it from 0 (the default value for
-            // intervalCursors) to the start address of this interval
-            gtirb::Addr &cursor = intervalCursors[eSection];
-            cursor = std::max(cursor, sectionAddr);
-
-            gtirb::Addr gAddr(ivalAddr);
-            if (cursor < gAddr) {
-                auto interval = gSection->addByteInterval(
-                    C, cursor, gAddr - cursor);
-                log_chunk("  Byte interval: ", *interval->getAddress());
-                log_chunk("  Byte interval size: ", interval->getSize());
-                cursor = gAddr + ivalSize;
-            }
-            else {
-                // If ivalAddr is behind the cursor addr,
-                // that means that the new block falls in the middle of
-                // a previously created one.
-                cursor = std::max(cursor, gtirb::Addr(ivalAddr + ivalSize));
-            }
-        }
-
-        // Add extra intervals to end of code sections
-        for (auto &[section, cursor] : intervalCursors) {
-            gtirb::Addr sectionAddr = (gtirb::Addr)section->getAddress();
-            gtirb::Addr sectionEnd = sectionAddr + section->getSize();
-            if (sectionEnd > cursor) {
-                auto sections = gCtx.module->findSections(section->getName());
-                auto gSection = &*sections.begin();
-                auto interval = gSection->addByteInterval(
-                    C, cursor, sectionEnd - cursor);
-                log_chunk("  Byte interval: ", *interval->getAddress());
-                log_chunk("  Byte interval size: ", interval->getSize());
-            }
-        }
+        // Add byte intervals for regions that haven't been covered
+        add_missing_byte_intervals();
 
         // Once functions and symbols have been traversed,
         // add information about the symbolic references witin the code/data
@@ -1075,17 +1114,8 @@ public:
             // Only add byte intervals for non-code sections. Code sections will
             // have byte intervals added on a function-by-function basis.
             if (eSection->getSize()) {
-                // Attempt to create a single byte interval per section
-                // (further gtirb analyses can split this up if desired)
-                // Some functions in the .text section may have addresses
-                // that are outside of these section bounds,  in which case
-                // they get their own byte intervals
-                log_chunk("  Byte interval: ", eSection->getAddress(), " - ",
-                    eSection->getAddress() + eSection->getSize());
-                gCtx.byteInterval = gSection->addByteInterval(C,
-                    gtirb::Addr(eSection->getAddress()), eSection->getSize());
-                log_chunk(
-                    "  Byte interval size: ", gCtx.byteInterval->getSize());
+                gCtx.byteInterval = get_canonical_interval(
+                    eSection->getAddress(), eSection->getSize());
             }
             // If it is not a code section, add all of the bytes for the section
             // now. Bytes from code sections will be added function by function
@@ -1296,20 +1326,8 @@ public:
 
         auto addr = function->getAddress();
 
-        auto sections = gCtx.module->findSections(eCtx.section->getName());
-        // The section must exist
-        // And there must be only one section by that name
-        assert(sections.begin() != sections.end());
-        assert(std::next(sections.begin()) == sections.end());
-
-        gCtx.section = &*sections.begin();
-
-        interval_addrs[function->getAddress()] = function->getSize();
-        gCtx.byteInterval = gCtx.section->addByteInterval(
-            C, gtirb::Addr(addr), function->getSize());
-        log_chunk("  Byte interval: ", *gCtx.byteInterval->getAddress());
-        log_chunk("  Byte interval size: ", gCtx.byteInterval->getSize());
-
+        gCtx.byteInterval = get_canonical_interval(addr, function->getSize());
+        gCtx.section = gCtx.byteInterval->getSection();
         log_chunk("  Symbol Section: ", gCtx.section->getName());
         eCtx.function = function;
         std::string symName = function->getName();
