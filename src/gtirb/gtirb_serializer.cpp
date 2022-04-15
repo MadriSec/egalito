@@ -151,8 +151,14 @@ protected:
             return;
         }
         chunk_depth += 1;
+        // Save the current Egalito/GTIRB context state
+        auto eCtx_saved = eCtx;
+        auto gCtx_saved = gCtx;
         for (ChildT child : CIter::children(parent)) {
             child->accept(this);
+            // Restore the Egalito/GTIRB context state
+            eCtx = eCtx_saved;
+            gCtx = gCtx_saved;
         }
         chunk_depth -= 1;
     }
@@ -206,19 +212,19 @@ public:
      * (egalito/gtirb) without having the 'g/e' prefix before each field
      */
     struct {
-        Program *program;
-        Module *module;
-        Function *function;
-        DataRegion *region;
-        DataSection *section;
-        JumpTable *jtable;
+        Program *program = nullptr;
+        Module *module = nullptr;
+        Function *function = nullptr;
+        DataRegion *region = nullptr;
+        DataSection *section = nullptr;
+        JumpTable *jtable = nullptr;
     } eCtx;
 
     struct {
-        gtirb::Module *module;
-        gtirb::ByteInterval *byteInterval;
-        gtirb::CodeBlock *codeBlock;
-        gtirb::Section *section;
+        gtirb::Module *module = nullptr;
+        gtirb::ByteInterval *byteInterval = nullptr;
+        gtirb::CodeBlock *codeBlock = nullptr;
+        gtirb::Section *section = nullptr;
         std::optional<gtirb::UUID> functionId = std::nullopt;
 
         // Originally this was just a place to store gtirb-related context while
@@ -707,11 +713,6 @@ public:
         eCtx.program = eProgram;
 
         recurse<Module *>(eProgram);
-        // This has to come after parsing the module,
-        // because library usage is added to the gtirb::module's auxData
-        // (which doesn't exist until module parsing)
-        // FIXME: This will not work with a deep scan of dependencies
-        visit(eProgram->getLibraryList());
     }
 
     void visit(Module *eModule) {
@@ -872,6 +873,12 @@ public:
                     (size_t)(intervalEnd - cursor));
             }
         }
+
+        // This has to come after parsing the module,
+        // because library usage is added to the gtirb::module's auxData
+        // (which doesn't exist until module parsing)
+        // FIXME: This will not work with a deep scan of dependencies
+        visit(eCtx.program->getLibraryList());
     }
 
     void visit(LibraryList *libraryList) {
@@ -982,9 +989,6 @@ public:
         }
         recurse<DataVariable *>(eSection);
         recurse<GlobalVariable *>(eSection->getGlobalVariables());
-
-        gCtx.byteInterval = nullptr;
-        eCtx.section = nullptr;
     }
 
     /**
@@ -1166,7 +1170,6 @@ public:
         log_chunk("  Size: ", function->getSize());
 
         eCtx.section = getEgalitoSection(function);
-        gCtx.section = nullptr;
 
         auto addr = function->getAddress();
 
@@ -1220,10 +1223,6 @@ public:
             gSymbol, symSize, eSymTypeStr(symType), eSymBindingStr(symBind));
 
         recurse<Block *>(function);
-
-        gCtx.byteInterval = nullptr;
-        eCtx.function = nullptr;
-        eCtx.section = nullptr;
     }
 
     void visit(Block *block) {
@@ -1250,7 +1249,6 @@ public:
         gCtx.codeBlock = codeBlock;
         log_chunk("  Instructions:");
         recurse<Instruction *>(block);
-        gCtx.codeBlock = nullptr;
     }
 
     void visit(Instruction *instruction) {
@@ -1338,7 +1336,6 @@ public:
         log_chunk("  Location: ", jumpTable->getAddress());
         eCtx.jtable = jumpTable;
         recurse(jumpTable);
-        eCtx.jtable = nullptr;
     }
 
     void visit(PLTTrampoline *trampoline) {
