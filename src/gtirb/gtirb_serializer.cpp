@@ -629,16 +629,16 @@ public:
     }
 
     /**
-     * @brief Get the byte interval with the given address/size if it
+     * @brief Get the byte interval containing the given address/size if it
      * exists. Create a new interval if necessary.
      *
      * @note This function prevents duplicate byte intervals, but does not
      * prevent overlapping intervals.
      *
-     * @param ival_addr Starting address of the byte interval
-     * @param ival_size Size of the byte interval in bytes
-     * @return gtirb::ByteInterval *A byte interval with the specified address
-     * and size. Nullptr if ival_addr does not fall within a section.
+     * @param ival_addr Address contained in the byte interval
+     * @param ival_size Minimum interval size required (starting at ival_addr)
+     * @return gtirb::ByteInterval *A byte interval containing the specified
+     * address and size. Nullptr if ival_addr does not fall within a section.
      */
     gtirb::ByteInterval *get_canonical_interval(
         address_t ival_addr, size_t ival_size) {
@@ -664,16 +664,24 @@ public:
             gSection = &*sections.begin();
         }
 
-        auto intervals = gSection->findByteIntervalsAt(gtirb::Addr(ival_addr));
-        for (auto &interval : intervals) {
-            if (interval.getSize() == ival_size) {
-                return &interval;
+        auto intervals = gSection->findByteIntervalsOn(gtirb::Addr(ival_addr));
+        gtirb::ByteInterval *interval = nullptr;
+        for (auto &ival : intervals) {
+            auto offset = ival_addr - (address_t)*ival.getAddress();
+            auto required_size = offset + ival_size;
+            if (ival.getSize() >= required_size) {
+                interval = &ival;
+                break;
             }
         }
-        interval_addrs[ival_addr] = ival_size;
-        log_chunk("  Byte interval: ", ival_addr, " - ", ival_addr + ival_size);
-        log_chunk("  Byte interval size: ", ival_size);
-        return gSection->addByteInterval(C, gtirb::Addr(ival_addr), ival_size);
+
+        if (!interval) {
+            interval = gSection->addByteInterval(
+                C, gtirb::Addr(ival_addr), ival_size);
+            log_chunk("  Byte interval: 0x", ival_addr);
+            log_chunk("  Byte interval size: ", ival_size);
+        }
+        return interval;
     }
 
     /**
@@ -822,12 +830,22 @@ public:
             C, gtirb::Addr(blockAddr) - intervalStart, blockSize);
     }
 
-    void add_missing_byte_intervals() {
+    /**
+     * @brief Generate byte intervals for code sections on a
+     * function-by-function basis.
+     *
+     * FIXME: This process has two loops through function list sized
+     * collections, which is not very efficient.
+     */
+    void create_code_intervals() {
         assert(eCtx.module);
 
-        // Keep a pointer to the current location in each section,
-        // then run through the created intervals in ascending order,
-        // filling in gaps in the blocks as you go
+        // Map out the intervals required for each function
+        for (auto &function : CIter::children(eCtx.module->getFunctionList())) {
+            interval_addrs[function->getAddress()] = function->getSize();
+        }
+
+        // Build the byte intervals
         std::unordered_map<DataSection *, address_t> intervalCursors;
         for (auto &[ivalAddr, ivalSize] : interval_addrs) {
             auto eSection = eCtx.module->getDataRegionList()
@@ -844,19 +862,14 @@ public:
             address_t &cursor = intervalCursors[eSection];
             cursor = std::max(cursor, eSection->getAddress());
 
-            if (cursor < ivalAddr) {
-                get_canonical_interval(cursor, ivalAddr - cursor);
-                cursor = ivalAddr + ivalSize;
+            auto newSize = ivalAddr + ivalSize - cursor;
+            if (newSize) {
+                get_canonical_interval(cursor, newSize);
             }
-            else {
-                // If ivalAddr is behind the cursor addr,
-                // that means that the new block falls in the middle of
-                // a previously created one.
-                cursor = std::max(cursor, ivalAddr + ivalSize);
-            }
+            cursor = ivalAddr + ivalSize;
         }
 
-        // Add extra intervals to end of code sections
+        // Add intervals to end of code sections
         for (auto &[section, cursor] : intervalCursors) {
             address_t sectionEnd = section->getAddress() + section->getSize();
             if (sectionEnd > cursor) {
@@ -934,14 +947,14 @@ public:
             recurse<ExternalSymbol *>(eModule->getExternalSymbolList());
         }
         recurse<DataRegion *>(eModule->getDataRegionList());
+        // Build byte intervals for code sections before parsing the function
+        // list.
+        create_code_intervals();
         recurse<Function *>(eModule->getFunctionList());
         recurse<PLTTrampoline *>(eModule->getPLTList());
         recurse<VTable *>(eModule->getVTableList());
         recurse<JumpTable *>(eModule->getJumpTableList());
         recurse<Marker *>(eModule->getMarkerList());
-
-        // Add byte intervals for regions that haven't been covered
-        add_missing_byte_intervals();
 
         // Once functions and symbols have been traversed,
         // add information about the symbolic references witin the code/data
