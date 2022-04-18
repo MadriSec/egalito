@@ -680,6 +680,56 @@ public:
     }
 
     /**
+     * @brief Set the referent for a GTIRB symbol.
+     *
+     * @note This function will add a block for the referent if one does not
+     * already exist, but it will not attempt to create a byte interval for the
+     * symbol.
+     *
+     * @param symbol Symbol to add the referent to.
+     * @param ref_address Address of the referent.
+     */
+    void set_symbol_ref(gtirb::Symbol *symbol, gtirb::Addr ref_address) {
+        assert(gCtx.module);
+        auto interval = gCtx.byteInterval;
+        if (!interval) {
+            // TODO: We default to using the first byte interval we find, which
+            // may not be the best way to handle overlap
+            auto byteIntervals = gCtx.module->findByteIntervalsOn(ref_address);
+            if (byteIntervals.begin() != byteIntervals.end()) {
+                interval = &*byteIntervals.begin();
+            }
+            else {
+                LOG(0, "WARNING: No interval for ref at 0x"
+                           << std::hex << (address_t)ref_address);
+                // Make sure a block is added at this address
+                block_addrs.insert({address_t(ref_address), 0});
+                return;
+            }
+        }
+
+        gtirb::Node *block = nullptr;
+        auto blocks = interval->findBlocksAt(ref_address);
+        if (blocks.begin() == blocks.end()) {
+            log_chunk("  Adding block for symbol ", symbol->getName());
+            block_addrs.insert({address_t(ref_address), 0});
+            block = try_adding_data_block(interval, (address_t)ref_address, 0);
+        }
+        else {
+            block = &*blocks.begin();
+        }
+
+        if (gtirb::CodeBlock *codeBlock = dyn_cast_or_null<gtirb::CodeBlock>(
+                block)) {
+            symbol->setReferent(codeBlock);
+        }
+        else if (gtirb::DataBlock
+                     *dataBlock = dyn_cast_or_null<gtirb::DataBlock>(block)) {
+            symbol->setReferent(dataBlock);
+        }
+    }
+
+    /**
      * @brief Get the symbol associated with the given name/address if it
      * exists. Create a new symbol if necessary.
      *
@@ -709,11 +759,7 @@ public:
         if (!sym_out) {
             sym_out = LinkInfo::create_symbol(sym_addr, *sym_name, C, module);
             if ((sym_out) && (sym_out->getAddress())) {
-                // If the symbol points to an address,
-                // we will later ensure that a code/data block starts on
-                // that address.
-                // (Insert has no effect if the key is already mapped)
-                block_addrs.insert({address_t(*sym_out->getAddress()), 0});
+                set_symbol_ref(sym_out, *sym_out->getAddress());
             }
             else {
                 LOG(0, "NO ADDRESS ON CREATED SYBMOL");
@@ -828,36 +874,6 @@ public:
         recurse<Module *>(eProgram);
     }
 
-    void set_symbol_ref(
-        gtirb::Symbol *symbol, gtirb::Addr ref_address, gtirb::Module *module) {
-        auto byteIntervals = module->findByteIntervalsOn(ref_address);
-        if (byteIntervals.begin() == byteIntervals.end()) {
-            log_chunk("  No byte interval for symbol ", symbol->getName());
-            return;
-        }
-        auto interval = &*byteIntervals.begin();
-
-        gtirb::Node *block = nullptr;
-        auto blocks = interval->findBlocksAt(ref_address);
-        if (blocks.begin() == blocks.end()) {
-            log_chunk("  Adding block for symbol ", symbol->getName());
-            block_addrs.insert({address_t(ref_address), 0});
-            block = try_adding_data_block(interval, (address_t)ref_address, 0);
-        }
-        else {
-            block = &*blocks.begin();
-        }
-
-        if (gtirb::CodeBlock *codeBlock = dyn_cast_or_null<gtirb::CodeBlock>(
-                block)) {
-            symbol->setReferent(codeBlock);
-        }
-        else if (gtirb::DataBlock
-                     *dataBlock = dyn_cast_or_null<gtirb::DataBlock>(block)) {
-            symbol->setReferent(dataBlock);
-        }
-    }
-
     void visit(Module *eModule) {
         log_chunk("- Chunk: !module ", eModule->getName());
 
@@ -956,16 +972,6 @@ public:
             }
             LOG(10, "Added symbolic expression for " << linkInfo.label()
                                                      << " at " << offset);
-        }
-
-        // Add symbol referents
-        for (auto &symbol : gModule->symbols_by_addr()) {
-            if (!symbol.getAddress()) {
-                log_chunk("  No address for symbol ", symbol.getName());
-                continue;
-            }
-            gtirb::Addr symAddr = *symbol.getAddress();
-            set_symbol_ref(&symbol, symAddr, gModule);
         }
 
         // Add data blocks for regions that aren't covered by existing ones
