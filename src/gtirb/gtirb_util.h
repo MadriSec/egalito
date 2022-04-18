@@ -17,6 +17,18 @@ struct ElfSymbolInfo {
       Type;
 };
 
+/// \brief Auxiliary data covering ELF section properties.
+struct ElfSectionProperties {
+    static constexpr const char* Name = "elfSectionProperties";
+    typedef std::map<gtirb::UUID, std::tuple<uint64_t, uint64_t>> Type;
+};
+
+/// \brief Auxiliary data listing library dependence.
+struct Libraries {
+    static constexpr const char* Name = "libraries";
+    typedef std::vector<std::string> Type;
+};
+
 }
 }
 

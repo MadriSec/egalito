@@ -145,14 +145,19 @@ void ConductorSetup::parseEgalitoArchive(const char *archive) {
     conductor->resolveVTables();
 }
 
-void ConductorSetup::parseGtirb(GtirbDeserializer &gtirb_ds) {
+void ConductorSetup::parseGtirb(GtirbDeserializer &gtirb_ds,
+    bool withSharedLibs) {
+
     this->conductor = new Conductor();
     this->elf = nullptr;
     this->egalito = nullptr;
 
     conductor->parseGtirb(gtirb_ds);
 
-    // TODO: How to handle libraries?
+    if(withSharedLibs) {
+        conductor->parseLibraries();
+    }
+
     // TODO: Do we need the calls to resolveXYZ here?
 }
 

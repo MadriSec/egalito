@@ -174,7 +174,7 @@ void Conductor::parseEgalitoArchive(const char *archive) {
 }
 
 void Conductor::parseGtirb(GtirbDeserializer &gtirb_ds) {
-    Program *newProgram = gtirb_ds.deserialize();
+    Program *newProgram = gtirb_ds.deserialize(this);
 
     if (!newProgram) {
         LOG(1, "Error parsing archive [" << gtirb_ds.getFilename() << "]");
