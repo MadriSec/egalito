@@ -160,9 +160,6 @@ protected:
             eCtx = eCtx_saved;
             gCtx = gCtx_saved;
         }
-        // Restore the Egalito/GTIRB context state
-        eCtx = eCtx_saved;
-        gCtx = gCtx_saved;
         chunk_depth -= 1;
     }
 
