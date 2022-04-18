@@ -160,6 +160,9 @@ protected:
             eCtx = eCtx_saved;
             gCtx = gCtx_saved;
         }
+        // Restore the Egalito/GTIRB context state
+        eCtx = eCtx_saved;
+        gCtx = gCtx_saved;
         chunk_depth -= 1;
     }
 
@@ -1078,7 +1081,6 @@ public:
         log_chunk("  Range: ", std::hex, dataRegion->getRange().getStart(),
             " - ", dataRegion->getRange().getEnd());
         recurse(dataRegion);
-        eCtx.region = nullptr;
     }
 
     void visit(DataSection *eSection) {
