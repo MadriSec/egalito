@@ -538,19 +538,6 @@ public:
         }
 
         /**
-         * @brief Check if a symbol name is using Egalito's internal jump
-         * syntax.
-         *
-         * @param symName Symbol name to check
-         * @return true Symbol name contains invalid '/' character used in
-         * Egalito's internal jump names
-         * @return false Otherwise
-         */
-        static bool symbolNameIsIJump(std::string symName) {
-            return symName.find('/') != std::string::npos;
-        }
-
-        /**
          * @brief Create a gtirb symbol with the name and address matching
          * the link's destination
          *
@@ -561,20 +548,12 @@ public:
          * @return gtirb::Symbol* The newly created gtirb symbol
          */
         static gtirb::Symbol *create_symbol(std::optional<address_t> sym_addr,
-            std::optional<std::string> sym_name, gtirb::Context &C,
-            gtirb::Module *module) {
-            if ((!sym_name) && (!sym_addr)) {
-                return nullptr;
-            }
+            std::string sym_name, gtirb::Context &C, gtirb::Module *module) {
             LOG(10, "Creating symbol for " << label(sym_addr, sym_name));
-            if (sym_addr && sym_name && !symbolNameIsIJump(*sym_name)) {
-                return module->addSymbol(C, gtirb::Addr(*sym_addr), *sym_name);
+            if (sym_addr) {
+                return module->addSymbol(C, gtirb::Addr(*sym_addr), sym_name);
             }
-            else if (sym_addr) {
-                return module->addSymbol(
-                    C, gtirb::Addr(*sym_addr), symAddrName(*sym_addr));
-            }
-            return module->addSymbol(C, *sym_name);
+            return module->addSymbol(C, sym_name);
         }
 
         /**
@@ -616,16 +595,52 @@ public:
     std::map<address_t, size_t> block_addrs;
 
     /**
+     * @brief Check if a symbol name is using Egalito's internal jump
+     * syntax.
+     *
+     * @param symName Symbol name to check
+     * @return true Symbol name contains invalid '/' character used in
+     * Egalito's internal jump names
+     * @return false Otherwise
+     */
+    inline bool symbolNameIsIJump(std::string symName) {
+        return symName.find('/') != std::string::npos;
+    }
+
+    /**
+     * @brief Get a valid GTIRB symbol name from a symbol name and/or address
+     *
+     * @param sym_name Name of the symbol. May be an internal jump or fuzzyfunc.
+     * @param sym_addr Address of the symbol
+     * @return std::string Valid symbol name
+     */
+    std::string get_gtirb_name(std::optional<std::string> sym_name,
+        std::optional<address_t> sym_addr) {
+        if (sym_name && !symbolNameIsIJump(*sym_name)) {
+            // For fuzzyfunc, make sure we replace the invalid '-' char
+            std::replace(sym_name->begin(), sym_name->end(), '-', '_');
+            return *sym_name;
+        }
+        return LinkInfo::symAddrName(*sym_addr);
+    }
+
+    /**
      * @brief Get the symbol associated with the given name/address if it
      * exists. Create a new symbol if necessary.
      *
-     * @param sym_addr The address of the symbol to search for
-     * @param sym_name The name of the symbol to search for
+     * @param sym_addr Egalito-given address of the symbol to search for
+     * @param sym_name Egalito-given name of the symbol to search for
      * @param module The module in which the gtirb symbol would reside
      * @return gtirb::Symbol *A symbol with the address or name provided
      */
     gtirb::Symbol *get_canonical_symbol(std::optional<address_t> sym_addr,
         std::optional<std::string> sym_name, gtirb::Module *module) {
+        if (!sym_addr && !sym_name) {
+            return nullptr;
+        }
+
+        sym_name = get_gtirb_name(sym_name, sym_addr);
+
         // If there is a symbol with a matching name, use it even if the
         // address is wrong
         gtirb::Symbol *sym_out = LinkInfo::symbol_from_name(
@@ -637,7 +652,7 @@ public:
         }
         // Otherwise, create the symbol if necessary
         if (!sym_out) {
-            sym_out = LinkInfo::create_symbol(sym_addr, sym_name, C, module);
+            sym_out = LinkInfo::create_symbol(sym_addr, *sym_name, C, module);
             if ((sym_out) && (sym_out->getAddress())) {
                 // If the symbol points to an address,
                 // we will later ensure that a code/data block starts on
@@ -1212,10 +1227,7 @@ public:
             symType = eSymbol->getType();
             symBind = eSymbol->getBind();
         }
-        else {
-            // In case of fuzzyfunc, make sure we use proper assembly naming
-            std::replace(symName.begin(), symName.end(), '-', '_');
-        }
+
         gtirb::Symbol *gSymbol = get_canonical_symbol(
             addr, symName, gCtx.module);
         gCtx.functionId = gCtx.assignFunctionId(gSymbol);
