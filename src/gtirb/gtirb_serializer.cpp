@@ -607,7 +607,7 @@ public:
      * Egalito's internal jump names
      * @return false Otherwise
      */
-    bool symbolNameIsIJump(std::string symName) {
+    inline bool symbolNameIsIJump(std::string symName) {
         return symName.find('/') != std::string::npos;
     }
 
@@ -635,15 +635,17 @@ public:
      * @note This function prevents duplicate byte intervals, but does not
      * prevent overlapping intervals.
      *
+     * @note If ival_size is set to 0, this function will not try to create a
+     * new interval if one cannot be found at ival_addr.
+     *
      * @param ival_addr Address contained in the byte interval
      * @param ival_size Minimum interval size required (starting at ival_addr)
      * @return gtirb::ByteInterval *A byte interval containing the specified
-     * address and size. Nullptr if ival_addr does not fall within a section.
+     * address and size. Nullptr if the interval could not be found/created.
      */
     gtirb::ByteInterval *get_canonical_interval(
-        address_t ival_addr, size_t ival_size) {
+        address_t ival_addr, size_t ival_size = 0) {
         assert(gCtx.module);
-        assert(ival_size);
 
         auto gSection = gCtx.section;
         if (!gSection) {
@@ -675,7 +677,7 @@ public:
             }
         }
 
-        if (!interval) {
+        if (!interval && ival_size) {
             interval = gSection->addByteInterval(
                 C, gtirb::Addr(ival_addr), ival_size);
             log_chunk("  Byte interval: 0x", ival_addr);
@@ -698,19 +700,14 @@ public:
         assert(gCtx.module);
         auto interval = gCtx.byteInterval;
         if (!interval) {
-            // TODO: We default to using the first byte interval we find, which
-            // may not be the best way to handle overlap
-            auto byteIntervals = gCtx.module->findByteIntervalsOn(ref_address);
-            if (byteIntervals.begin() != byteIntervals.end()) {
-                interval = &*byteIntervals.begin();
-            }
-            else {
-                LOG(0, "WARNING: No interval for ref at 0x"
-                           << std::hex << (address_t)ref_address);
-                // Make sure a block is added at this address
-                block_addrs.insert({address_t(ref_address), 0});
-                return;
-            }
+            interval = get_canonical_interval((address_t)ref_address);
+        }
+        if (!interval) {
+            LOG(0, "WARNING: No interval for ref at 0x" << std::hex
+                                                        << ref_address);
+            // Make sure a block is added at this address
+            block_addrs.insert({address_t(ref_address), 0});
+            return;
         }
 
         gtirb::Node *block = nullptr;
@@ -967,12 +964,12 @@ public:
             if (!dst) {
                 continue;
             }
-            auto base = get_base_from_link(linkInfo, gModule);
-            auto byteIntervals = gModule->findByteIntervalsOn(
-                gtirb::Addr(linkInfo.src_addr));
-            auto interval = byteIntervals.begin();
+
             // Ensure that there is at at least one interval on this address
-            assert(interval != byteIntervals.end());
+            auto interval = get_canonical_interval(linkInfo.src_addr);
+            assert(interval);
+
+            auto base = get_base_from_link(linkInfo, gModule);
             auto offset = gtirb::Addr(linkInfo.src_addr) -
                           *interval->getAddress();
             if (base) {
@@ -996,20 +993,18 @@ public:
         std::unordered_map<gtirb::ByteInterval *, gtirb::Addr> addrCursors;
         for (auto &[blockAddr, blockSize] : block_addrs) {
             // Should be exactly one interval on this address at this point
-            auto intervals = gModule->findByteIntervalsOn(
-                gtirb::Addr(blockAddr));
-            if (intervals.begin() == intervals.end()) {
+            auto interval = get_canonical_interval(blockAddr);
+            if (!interval) {
                 std::cerr << "WARNING: No interval covering " << std::hex
                           << blockAddr << std::endl;
                 continue;
             }
-            gtirb::ByteInterval &interval = *intervals.begin();
-            gtirb::Addr intervalStart = *interval.getAddress();
+            gtirb::Addr intervalStart = *interval->getAddress();
 
             // If there is an existing cursor for this byte interval, use it
             // Otherwise, advance it from 0 (the default value for addrCursors)
             // to the start address of this interval
-            gtirb::Addr &cursor = addrCursors[&interval];
+            gtirb::Addr &cursor = addrCursors[interval];
             cursor = std::max(cursor, intervalStart);
 
             gtirb::Addr gAddr(blockAddr);
@@ -1018,7 +1013,7 @@ public:
                 log_chunk("    start: ", cursor);
                 log_chunk("    end: ", blockAddr);
                 try_adding_data_block(
-                    &interval, (address_t)cursor, (size_t)(gAddr - cursor));
+                    interval, (address_t)cursor, (size_t)(gAddr - cursor));
                 cursor = gAddr + blockSize;
             }
             else {
