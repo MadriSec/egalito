@@ -862,9 +862,12 @@ public:
             address_t &cursor = intervalCursors[eSection];
             cursor = std::max(cursor, eSection->getAddress());
 
-            auto newSize = ivalAddr + ivalSize - cursor;
-            if (newSize) {
-                get_canonical_interval(cursor, newSize);
+            auto intervalSize = ivalSize;
+            if (cursor < ivalAddr) {
+                intervalSize += ivalAddr - cursor;
+            }
+            if (intervalSize) {
+                get_canonical_interval(cursor, intervalSize);
             }
             cursor = ivalAddr + ivalSize;
         }
