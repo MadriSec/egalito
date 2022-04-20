@@ -574,7 +574,8 @@ void GtirbDeserializer::buildLinkForSymAddrConst(
         // See if we can find a function based on the symbol.
         auto find_symbol = this->symbol_map.find(sac.Sym);
         if (find_symbol == this->symbol_map.end()) {
-            LOG(1, "Unable to find symbol in gtirb->eg symbol map: " << sac.Sym->getName());
+            LOG(1, "Unable to find symbol in gtirb->eg symbol map: "
+                       << sac.Sym->getName());
             return;
         }
 
@@ -588,7 +589,7 @@ struct overload : Ts... {
     using Ts::operator()...;
 };
 template <class... Ts>
-overload(Ts...) -> overload<Ts...>;
+overload(Ts...)->overload<Ts...>;
 
 void GtirbDeserializer::buildDataLinks(Conductor *conductor,
     const gtirb::Module &gtirb_module, Module *eg_module) {
@@ -597,7 +598,6 @@ void GtirbDeserializer::buildDataLinks(Conductor *conductor,
     DataRegionList *eg_regions = eg_module->getDataRegionList();
     for (auto it = gtirb_module.sections_begin();
          it != gtirb_module.sections_end(); ++it) {
-
         // Find the corresponding Egalito section
         std::string sec_name = it->getName();
         DataSection *eg_section = eg_regions->findDataSection(sec_name);
@@ -620,14 +620,15 @@ void GtirbDeserializer::buildDataLinks(Conductor *conductor,
 
             // Grab the first. TODO: What do we do about the rest?
             // FIXME: Make this a reference when we have a fix in gtirb.
-            const gtirb::SymbolicExpression se = ses.begin()->getSymbolicExpression();
+            const gtirb::SymbolicExpression se = ses.begin()
+                                                     ->getSymbolicExpression();
 
             std::visit(overload{[&](const gtirb::SymAddrConst &sac) {
                                     buildLinkForSymAddrConst(
                                         conductor, eg_module, sac);
                                 },
                            [&](const gtirb::SymAddrAddr &sac) {
-                                // TODO!
+                               // TODO!
                            }},
                 se);
         }

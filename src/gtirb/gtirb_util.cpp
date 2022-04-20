@@ -4,13 +4,12 @@
 #include "gtirb/AuxDataSchema.hpp"
 
 // Register AuxData used in the Egalito/GTIRB integration
-void register_gtirb_auxdata()
-{
+void register_gtirb_auxdata() {
     using namespace gtirb;
     using namespace gtirb::schema;
 
     static bool initialized = false;
-    if(initialized) {
+    if (initialized) {
         return;
     }
 
