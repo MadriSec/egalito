@@ -23,9 +23,8 @@ class SymbolList;
 class Symbol;
 
 /** Highest-level gtirb deserialization for a given gtirb file.
-*/
-class GtirbDeserializer
-{
+ */
+class GtirbDeserializer {
 public:
     /** 
      * @brief Construct a deserializer for the given GTIRB file.
@@ -59,17 +58,23 @@ public:
 private:
     ElfMap *buildElfMap(const gtirb::Module &module);
     SymbolList *buildSymbolList(const gtirb::Module &module);
-    Function *buildFunction(gtirb::UUID sym_uuid, const std::set<gtirb::UUID> &entries, const std::set<gtirb::UUID> &blocks);
+    Function *buildFunction(gtirb::UUID sym_uuid,
+        const std::set<gtirb::UUID> &entries,
+        const std::set<gtirb::UUID> &blocks);
     InitFunctionList *buildInitFunctionList();
     InitFunctionList *buildFiniFunctionList();
     void buildDataRegionList(ElfMap *elf_map, Module *module);
-    void buildGlobalVariables(const gtirb::Module &gtirb_module, Module *eg_module);
+    void buildGlobalVariables(
+        const gtirb::Module &gtirb_module, Module *eg_module);
     PLTList *buildPLTList();
     void buildCodeLinks();
-    void buildLinkForSymAddrConst(Conductor *conductor, Module *module, gtirb::SymAddrConst sac);
-    void buildDataLinks(Conductor *conductor, const gtirb::Module &gtirb_module, Module *eg_module);
+    void buildLinkForSymAddrConst(
+        Conductor *conductor, Module *module, gtirb::SymAddrConst sac);
+    void buildDataLinks(Conductor *conductor, const gtirb::Module &gtirb_module,
+        Module *eg_module);
     bool isLoadableGtirbModule(const gtirb::Module &module);
-    void addLibDependences(const gtirb::Module &module, LibraryList *lib_list, Library *library);
+    void addLibDependences(
+        const gtirb::Module &module, LibraryList *lib_list, Library *library);
 
     std::string filename;
     std::unique_ptr<gtirb::Context> C;

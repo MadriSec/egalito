@@ -13,10 +13,10 @@ namespace schema {
  * @brief Auxiliary data for extra symbol info.
  */
 struct ElfSymbolInfo {
-  static constexpr const char* Name = "elfSymbolInfo";
-  typedef std::map<gtirb::UUID, std::tuple<uint64_t, std::string, std::string,
-                                           std::string, uint64_t>>
-      Type;
+    static constexpr const char* Name = "elfSymbolInfo";
+    typedef std::map<gtirb::UUID,
+        std::tuple<uint64_t, std::string, std::string, std::string, uint64_t>>
+        Type;
 };
 
 /**
@@ -34,7 +34,6 @@ struct Libraries {
     static constexpr const char* Name = "libraries";
     typedef std::vector<std::string> Type;
 };
-
 }
 }
 
@@ -43,4 +42,4 @@ struct Libraries {
  */
 void register_gtirb_auxdata();
 
-#endif // GTIRB_UTIL_H
+#endif  // GTIRB_UTIL_H
