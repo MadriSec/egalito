@@ -713,7 +713,6 @@ public:
         gtirb::Node *block = nullptr;
         auto blocks = interval->findBlocksAt(ref_address);
         if (blocks.begin() == blocks.end()) {
-            log_chunk("  Adding block for symbol ", symbol->getName());
             block_addrs.insert({address_t(ref_address), 0});
             block = try_adding_data_block(interval, (address_t)ref_address, 0);
         }
