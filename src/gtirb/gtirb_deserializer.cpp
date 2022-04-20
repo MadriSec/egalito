@@ -47,9 +47,9 @@ bool GtirbDeserializer::preParse() {
 
 /**
  * @brief Convert from GTIRB's notion of symbol types to Egalito's notion.
- * 
+ *
  * @param gtirb_sym_type A string representation of a symbol's type.
- * @return Symbol::SymbolType 
+ * @return Symbol::SymbolType
  */
 static Symbol::SymbolType convertGtirbSymbolType(std::string gtirb_sym_type) {
     using ST = Symbol::SymbolType;
@@ -78,11 +78,12 @@ static Symbol::SymbolType convertGtirbSymbolType(std::string gtirb_sym_type) {
 
 /**
  * @brief Convert from GTIRB's notion of binding type to Egalito's notion.
- * 
+ *
  * @param gtirb_bind_type A string representation of a symbol's binding type.
- * @return Symbol::BindingType 
+ * @return Symbol::BindingType
  */
-static Symbol::BindingType convertGtirbBindingType(std::string gtirb_bind_type) {
+static Symbol::BindingType convertGtirbBindingType(
+    std::string gtirb_bind_type) {
     using BT = Symbol::BindingType;
 
     static const std::unordered_map<std::string, Symbol::BindingType>
@@ -103,9 +104,9 @@ static Symbol::BindingType convertGtirbBindingType(std::string gtirb_bind_type) 
 
 /**
  * @brief Convert from GTIRB's notion of ISA to Egalito's notion.
- * 
+ *
  * @param isa The GTIRB enum constant representing the ISA.
- * @return size_t 
+ * @return size_t
  */
 static size_t gtirb_isa_to_machine(gtirb::ISA isa) {
     switch (isa) {
@@ -122,10 +123,10 @@ static size_t gtirb_isa_to_machine(gtirb::ISA isa) {
 
 /**
  * @brief Copy bytes from a GTIRB section to a byte buffer.
- * 
+ *
  * @param dest Destination for storing the bytes.
  * @param section GTIRB section to copy bytes from.
- * 
+ *
  * @note Assumes that the ByteIntervals in the section have addresses and are
  * non-overlapping.
  */
@@ -148,9 +149,9 @@ static void copySectionBytes(std::byte *dest, const gtirb::Section &section) {
 
 /**
  * @brief Fetch the segment permissions for a section as an ELF-style bitmask.
- * 
+ *
  * @param section The section to get permissions for.
- * @return uint32_t 
+ * @return uint32_t
  */
 static uint32_t get_seg_perms(const gtirb::Section &section) {
     uint32_t rv = 0;
@@ -168,13 +169,13 @@ static uint32_t get_seg_perms(const gtirb::Section &section) {
 
 /**
  * @brief The name used for the .shstrtab section.
- * 
+ *
  */
 static const std::string shstrtab_name = ".shstrtab";
 
 /**
  * @brief Build an ElfMap from the bytes in a GTIRB Module.
- * 
+ *
  * @param module The module to build an ElfMap for.
  * @return ElfMap* The resulting ElfMap.
  */
@@ -384,9 +385,9 @@ ElfMap *GtirbDeserializer::buildElfMap(const gtirb::Module &module) {
 
 /**
  * @brief Build the SymbolList for all symbols in the given GTIRB Module.
- * 
+ *
  * @param module The Module to build the SymbolList for.
- * @return SymbolList* 
+ * @return SymbolList*
  */
 SymbolList *GtirbDeserializer::buildSymbolList(const gtirb::Module &module) {
     // TODO: The constructor for SymbolList optionally takes an ElfMap.
@@ -427,13 +428,13 @@ SymbolList *GtirbDeserializer::buildSymbolList(const gtirb::Module &module) {
 
 /**
  * @brief Attach a new block to the given Function.
- * 
+ *
  * @param function The function to attach the block to.
  * @param prev The previous block attached to the same function. (Would be
  * the return value of a previous invocation of this function.) May be null.
- * 
+ *
  * @return Block* The added block.
- * 
+ *
  * @note This function is copied from <egalito>/src/disasm/disassemble.cpp.
  * It's not clear how easy it would be to refactor to avoid the copy, given it's
  * a protected member function of the DisassembleFunctionBase. Possibly the
@@ -456,10 +457,13 @@ static Block *makeBlock(Function *function, Block *prev) {
 
 /**
  * @brief Build an Egalito function for the given GTIRB notion of function.
- * 
- * @param sym_uuid The UUID of the symbol designated as carrying the function's name.
- * @param entries The set of UUIDs of CodeBlocks that are entry points to the function.
- * @param blocks The set of UUIDs of CodeBlocks that make up the body of the function.
+ *
+ * @param sym_uuid The UUID of the symbol designated as carrying the function's
+ * name.
+ * @param entries The set of UUIDs of CodeBlocks that are entry points to the
+ * function.
+ * @param blocks The set of UUIDs of CodeBlocks that make up the body of the
+ * function.
  * @return Function* The resulting function.
  */
 Function *GtirbDeserializer::buildFunction(gtirb::UUID sym_uuid,
@@ -551,10 +555,10 @@ Function *GtirbDeserializer::buildFunction(gtirb::UUID sym_uuid,
 
 /**
  * @brief Build the init function list.
- * 
+ *
  * @note This is currently unimplemented.
- * 
- * @return InitFunctionList* 
+ *
+ * @return InitFunctionList*
  */
 InitFunctionList *GtirbDeserializer::buildInitFunctionList() {
     return new InitFunctionList();
@@ -562,10 +566,10 @@ InitFunctionList *GtirbDeserializer::buildInitFunctionList() {
 
 /**
  * @brief Build the fini function list.
- * 
+ *
  * @note This is currently unimplemented.
- * 
- * @return InitFunctionList* 
+ *
+ * @return InitFunctionList*
  */
 InitFunctionList *GtirbDeserializer::buildFiniFunctionList() {
     return new InitFunctionList();
@@ -573,7 +577,7 @@ InitFunctionList *GtirbDeserializer::buildFiniFunctionList() {
 
 /**
  * @brief Build the list of data regions covering the module.
- * 
+ *
  * @param elf_map The ElfMap for the Module.
  * @param module The Egalito Module object.
  */
@@ -587,7 +591,7 @@ void GtirbDeserializer::buildDataRegionList(ElfMap *elf_map, Module *module) {
 
 /**
  * @brief Build global variables for a module.
- * 
+ *
  * @param gtirb_module The GTIRB version of the module.
  * @param eg_module The Egalito version of the module.
  */
@@ -637,10 +641,10 @@ void GtirbDeserializer::buildGlobalVariables(
 
 /**
  * @brief Build the PLT list.
- * 
+ *
  * @note This is currently unimplemented.
- * 
- * @return PLTList* 
+ *
+ * @return PLTList*
  */
 PLTList *GtirbDeserializer::buildPLTList() {
     return new PLTList();
@@ -648,7 +652,7 @@ PLTList *GtirbDeserializer::buildPLTList() {
 
 /**
  * @brief Build code-based links.
- * 
+ *
  * @note This is a placeholder. Currently code-based links are built by invoking
  * an Egalito pass after deserialization. This is probably less than ideal but
  * currently works well enough.
@@ -657,10 +661,11 @@ void GtirbDeserializer::buildCodeLinks() {}
 
 /**
  * @brief Build a link for a SymAddrConst SymbolicExpression.
- * 
+ *
  * @param conductor The Conductor context for IR construction.
  * @param module The Egalito module.
- * @param sac A SymAddrConst instance representing the symbolic expression for the link.
+ * @param sac A SymAddrConst instance representing the symbolic expression for
+ * the link.
  */
 void GtirbDeserializer::buildLinkForSymAddrConst(
     Conductor *conductor, Module *module, gtirb::SymAddrConst sac) {
@@ -700,8 +705,8 @@ void GtirbDeserializer::buildLinkForSymAddrConst(
 
 /**
  * @brief Template magic to support use of std::visit.
- * 
- * @tparam Ts 
+ *
+ * @tparam Ts
  */
 template <class... Ts>
 struct overload : Ts... {
@@ -712,7 +717,7 @@ overload(Ts...)->overload<Ts...>;
 
 /**
  * @brief Build data-based links for a module.
- * 
+ *
  * @param conductor The conductor context for IR construction.
  * @param gtirb_module The GTIRB version of the module.
  * @param eg_module The Egalito version of the module.
@@ -762,12 +767,13 @@ void GtirbDeserializer::buildDataLinks(Conductor *conductor,
 }
 
 /**
- * @brief Determine if the given GTIRB file exhibits certain properties needed for Egalito deserialization.
- * 
+ * @brief Determine if the given GTIRB file exhibits certain properties needed
+ * for Egalito deserialization.
+ *
  * @param module The GTIRB module to be deserialized.
  * @return true Deserializable module.
  * @return false Module missing some property that makes it not deserializable.
- * 
+ *
  * @note This is a gate-keeper function to detect certain problematic constructs
  * that are valid in GTIRB files but that the Egalito importer is not capable
  * of handling.
@@ -810,7 +816,7 @@ bool GtirbDeserializer::isLoadableGtirbModule(const gtirb::Module &module) {
 
 /**
  * @brief Add dynamic (.so) library dependences to the Egalito library list.
- * 
+ *
  * @param module The GTIRB module.
  * @param lib_list The library list to be added to.
  * @param library The library representing the "main" module.

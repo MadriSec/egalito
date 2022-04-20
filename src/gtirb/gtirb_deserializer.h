@@ -26,9 +26,9 @@ class Symbol;
  */
 class GtirbDeserializer {
 public:
-    /** 
+    /**
      * @brief Construct a deserializer for the given GTIRB file.
-     * 
+     *
      * @param filename Path of the GTIRB file that will be deserialized.
      */
     GtirbDeserializer(std::string filename);
@@ -36,21 +36,23 @@ public:
 
     /**
      * @brief Preparse the file and determine if it's a valid gtirb file.
-     * 
+     *
      * @return false if the GTIRB file is invalid in some way. true otherwise.
      */
     bool preParse();
 
     /**
-     * @brief Deserialize the GTIRB file and return the root of the deserialized tree.
-     * 
-     * @param conductor The Conductor providing the context in which to deserialize.
-     * 
-     * @return Deserialized Program instance. 
+     * @brief Deserialize the GTIRB file and return the root of the deserialized
+     * tree.
+     *
+     * @param conductor The Conductor providing the context in which to
+     * deserialize.
+     *
+     * @return Deserialized Program instance.
      */
     Program *deserialize(Conductor *conductor);
 
-    /** 
+    /**
      * @brief The filename this deserializer will process
      */
     std::string getFilename() { return this->filename; }
