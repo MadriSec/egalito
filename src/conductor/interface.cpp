@@ -54,7 +54,7 @@ bool EgalitoInterface::importGtirb(const std::string &filename) {
     GtirbDeserializer gtirb_ds(filename);
     if (gtirb_ds.preParse())
     {
-        LOG(1, "parseing gtirb [" << filename << "]");
+        LOG(1, "parsing gtirb [" << filename << "]");
         setup.parseGtirb(gtirb_ds);
         return true;
     }
