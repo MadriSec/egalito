@@ -1174,6 +1174,27 @@ public:
     }
 
     /**
+     * @brief Determine if a DataVariable is a forwarded symbol.
+     *
+     * @details According to ddisasm, the following symbols should be added to
+     * the symbol forwarding table:
+     *          - Copy relocations
+     *          - ABI-specific artifacts
+     *          - PLT entries
+     *          - GOT entries
+     *
+     * @param variable DataVariable to check
+     * @return true variable is a forwarded symbol
+     * @return false Otherwise
+     */
+    inline bool is_forwarded_symbol(DataVariable *variable) {
+        auto sectionName = eCtx.section->getParent()->getName();
+        return (!variable->getDest()) || variable->getIsCopy() ||
+               (sectionName.find(".plt") != std::string::npos) ||
+               (sectionName.find(".got") != std::string::npos);
+    }
+
+    /**
      * Data variable description:
      * "Represents a variable within a global data section that points at
      * another Chunk"
@@ -1186,12 +1207,8 @@ public:
         // Ensure a data block will start at this address
         registerDataBlock(variable->getAddress(), variable->getSize());
 
-        // There seem to be two types of data variables:
-        // - variables with a 'dest' link
-        // - variables with a 'target' symbol
-        std::string varName = variable->getName();
-        Link *dest = variable->getDest();
-        if (dest && !variable->getIsCopy()) {
+        if (!is_forwarded_symbol(variable)) {
+            Link *dest = variable->getDest();
             // "Dest" variables don't seem to need a symbol,
             // we just need to create a symbolic reference from this address
             log_chunk("  Type: Link");
@@ -1212,9 +1229,8 @@ public:
             variable->setName(LinkInfo::symAddrName(variable->getAddress()));
         }
 
-        // 'Target' variables *seem* to be GOT references,
-        // In this case, generate a name for the symbol at this address,
-        // and add forwarding to a non-addressed symbol with the target name.
+        // Generate a name for the symbol at this address, and add forwarding to
+        // a non-addressed symbol with the target name.
         Symbol *target = variable->getTargetSymbol();
         // ('target' seems to always be specified if 'dest' is not)
         assert(target);
@@ -1245,6 +1261,7 @@ public:
             gCtx.addSymbolForwarding(gSymbol, &*existingTargets.begin());
         }
         else {
+            // Add a proxyblock to this?
             gtirb::Symbol *gTarget = get_canonical_symbol(
                 std::nullopt, target->getName(), gCtx.module);
             gCtx.addSymbolInfo(gTarget, target->getSize(),
