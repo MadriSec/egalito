@@ -91,8 +91,10 @@ static Symbol::BindingType convertGtirbBindingType(
         // some further investigation to verify they are the right
         // way to translate things. Specifically: UNIQUE and GNU_UNIQUE.
         type_name_conversion = {
-            {"LOCAL", BT::BIND_LOCAL}, {"GLOBAL", BT::BIND_GLOBAL},
-            {"WEAK", BT::BIND_WEAK}, {"UNIQUE", BT::BIND_GLOBAL},
+            {"LOCAL", BT::BIND_LOCAL},
+            {"GLOBAL", BT::BIND_GLOBAL},
+            {"WEAK", BT::BIND_WEAK},
+            {"UNIQUE", BT::BIND_GLOBAL},
             {"GNU_UNIQUE", BT::BIND_GLOBAL},
         };
     auto it = type_name_conversion.find(gtirb_bind_type);
