@@ -589,10 +589,8 @@ public:
     /// \brief Filled out with information about unresolved symbolic references
     /// in a first pass
     std::vector<LinkInfo> links;
-    /// \brief Addresses where byte intervals start or need to start
-    // If the interval is already created this maps the address to the size of
-    // the interval Otherwise, it maps the address to an interval of size 0
-    std::map<address_t, size_t> interval_addrs;
+    /// \brief Addresses where byte intervals need to start
+    std::vector<address_t> interval_addrs;
     /// \brief Addresses where block addresses start or need to start
     // If the block is already created this maps the address to the size of the
     // block Otherwise, it maps the address to a block of size 0
@@ -666,22 +664,18 @@ public:
             gSection = &*sections.begin();
         }
 
-        auto intervals = gSection->findByteIntervalsOn(gtirb::Addr(ival_addr));
         gtirb::ByteInterval *interval = nullptr;
-        for (auto &ival : intervals) {
-            auto offset = ival_addr - (address_t)*ival.getAddress();
-            auto required_size = offset + ival_size;
-            if (ival.getSize() >= required_size) {
-                interval = &ival;
-                break;
-            }
-        }
-
-        if (!interval && ival_size) {
+        auto intervals = gSection->findByteIntervalsOn(gtirb::Addr(ival_addr));
+        if (intervals.begin() == intervals.end()) {
             interval = gSection->addByteInterval(
                 C, gtirb::Addr(ival_addr), ival_size);
             log_chunk("  Byte interval: 0x", ival_addr);
             log_chunk("  Byte interval size: ", ival_size);
+        }
+        else {
+            // Make sure there is only one interval per address
+            assert(std::next(intervals.begin()) == intervals.end());
+            interval = &*intervals.begin();
         }
         return interval;
     }
@@ -838,12 +832,13 @@ public:
 
         // Map out the intervals required for each function
         for (auto &function : CIter::children(eCtx.module->getFunctionList())) {
-            interval_addrs[function->getAddress()] = function->getSize();
+            interval_addrs.push_back(function->getAddress());
         }
+        std::sort(interval_addrs.begin(), interval_addrs.end());
 
         // Build the byte intervals
         std::unordered_map<DataSection *, address_t> intervalCursors;
-        for (auto &[ivalAddr, ivalSize] : interval_addrs) {
+        for (auto ivalAddr : interval_addrs) {
             auto eSection = eCtx.module->getDataRegionList()
                                 ->findDataSectionContaining(ivalAddr);
             if (!eSection) {
@@ -858,14 +853,10 @@ public:
             address_t &cursor = intervalCursors[eSection];
             cursor = std::max(cursor, eSection->getAddress());
 
-            auto intervalSize = ivalSize;
-            if (cursor < ivalAddr) {
-                intervalSize += ivalAddr - cursor;
+            if (ivalAddr > cursor) {
+                get_canonical_interval(cursor, ivalAddr - cursor);
+                cursor = cursor + ivalAddr - cursor;
             }
-            if (intervalSize) {
-                get_canonical_interval(cursor, intervalSize);
-            }
-            cursor = ivalAddr + ivalSize;
         }
 
         // Add intervals to end of code sections
@@ -1041,11 +1032,6 @@ public:
             }
         }
 
-        // Remove the interval addresses to allow relocation and prevent overlap
-        for (auto &interval : gModule->byte_intervals()) {
-            interval.setAddress(std::nullopt);
-        }
-
         // This has to come after parsing the module,
         // because library usage is added to the gtirb::module's auxData
         // (which doesn't exist until module parsing)
@@ -1153,7 +1139,7 @@ public:
             }
         }
         else {
-            interval_addrs.insert({eSection->getAddress(), 0});
+            interval_addrs.push_back(eSection->getAddress());
         }
         recurse<DataVariable *>(eSection);
         recurse<GlobalVariable *>(eSection->getGlobalVariables());
