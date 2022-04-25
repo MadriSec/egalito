@@ -630,11 +630,8 @@ public:
      * @brief Get the byte interval containing the given address/size if it
      * exists. Create a new interval if necessary.
      *
-     * @note This function prevents duplicate byte intervals, but does not
-     * prevent overlapping intervals.
-     *
-     * @note If ival_size is set to 0, this function will not try to create a
-     * new interval if one cannot be found at ival_addr.
+     * @note If ival_size is set to 0, this function will search for an existing
+     * interval without trying to create a new interval.
      *
      * @param ival_addr Address contained in the byte interval
      * @param ival_size Minimum interval size required (starting at ival_addr)
@@ -854,6 +851,7 @@ public:
             cursor = std::max(cursor, eSection->getAddress());
 
             if (ivalAddr > cursor) {
+                // Return value ignored
                 get_canonical_interval(cursor, ivalAddr - cursor);
                 cursor = cursor + ivalAddr - cursor;
             }
@@ -863,6 +861,7 @@ public:
         for (auto &[section, cursor] : intervalCursors) {
             address_t sectionEnd = section->getAddress() + section->getSize();
             if (sectionEnd > cursor) {
+                // Return value ignored
                 get_canonical_interval(cursor, sectionEnd - cursor);
             }
         }
