@@ -1188,7 +1188,7 @@ public:
      * @return false Otherwise
      */
     inline bool is_forwarded_symbol(DataVariable *variable) {
-        auto sectionName = eCtx.section->getParent()->getName();
+        auto sectionName = variable->getParent()->getName();
         return (!variable->getDest()) || variable->getIsCopy() ||
                (sectionName.find(".plt") != std::string::npos) ||
                (sectionName.find(".got") != std::string::npos);
