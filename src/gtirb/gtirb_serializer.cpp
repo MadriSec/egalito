@@ -589,8 +589,6 @@ public:
     /// \brief Filled out with information about unresolved symbolic references
     /// in a first pass
     std::vector<LinkInfo> links;
-    /// \brief Addresses where byte intervals need to start
-    std::vector<address_t> interval_addrs;
     /// \brief Addresses where block addresses start or need to start
     // If the block is already created this maps the address to the size of the
     // block Otherwise, it maps the address to a block of size 0
@@ -818,24 +816,23 @@ public:
     }
 
     /**
-     * @brief Generate byte intervals for code sections on a
-     * function-by-function basis.
+     * @brief Resize functions to prevent overlap during parsing.
      *
      * FIXME: This process has two loops through function list sized
      * collections, which is not very efficient.
      */
-    void create_code_intervals() {
+    void remove_function_overlap() {
         assert(eCtx.module);
 
         // Map out the intervals required for each function
+        std::map<address_t, Function *> interval_addrs;
         for (auto &function : CIter::children(eCtx.module->getFunctionList())) {
-            interval_addrs.push_back(function->getAddress());
+            interval_addrs[function->getAddress()] = function;
         }
-        std::sort(interval_addrs.begin(), interval_addrs.end());
 
-        // Build the byte intervals
-        std::unordered_map<DataSection *, address_t> intervalCursors;
-        for (auto ivalAddr : interval_addrs) {
+        // Resize functions
+        std::unordered_map<DataSection *, Function *> functionCursors;
+        for (auto &[ivalAddr, function] : interval_addrs) {
             auto eSection = eCtx.module->getDataRegionList()
                                 ->findDataSectionContaining(ivalAddr);
             if (!eSection) {
@@ -843,28 +840,24 @@ public:
                           << ivalAddr << std::endl;
                 continue;
             }
-
-            // If there is an existing cursor for this byte interval, use it
-            // Otherwise, advance it from 0 (the default value for
-            // intervalCursors) to the start address of this interval
-            address_t &cursor = intervalCursors[eSection];
-            cursor = std::max(cursor, eSection->getAddress());
-
-            if (ivalAddr > cursor) {
-                // Return value ignored
-                get_canonical_interval(cursor, ivalAddr - cursor);
-                cursor = cursor + ivalAddr - cursor;
+            // Skip the first function (we need the next one to detect overlap)
+            if (!functionCursors[eSection]) {
+                functionCursors[eSection] = function;
+                continue;
             }
-        }
+            auto lastFunction = functionCursors[eSection];
 
-        // Add intervals to end of code sections
-        for (auto &[section, cursor] : intervalCursors) {
-            address_t sectionEnd = section->getAddress() + section->getSize();
-            if (sectionEnd > cursor) {
-                // Return value ignored
-                get_canonical_interval(cursor, sectionEnd - cursor);
-            }
+            // We don't want to add any extra bytes to functions, just remove
+            // overlap
+            auto lastFunctionSize = std::min(
+                function->getAddress() - lastFunction->getAddress(),
+                lastFunction->getSize());
+            lastFunction->setSize(lastFunctionSize);
+
+            functionCursors[eSection] = function;
         }
+        // No need to resize the last function in each section.
+        // Section spillover should already be handled by byte interval sizing.
     }
 
     void visit(Program *eProgram) {
@@ -920,6 +913,8 @@ public:
         for (auto region : CIter::regions(eCtx.module)) {
             region->updateAddressFor(0);
         }
+        // Remove any function overlap created during parsing
+        remove_function_overlap();
 
         // Cannot simply call
         //   recurse(eModule);
@@ -936,9 +931,6 @@ public:
             recurse<ExternalSymbol *>(eModule->getExternalSymbolList());
         }
         recurse<DataRegion *>(eModule->getDataRegionList());
-        // Build byte intervals for code sections before parsing the function
-        // list.
-        create_code_intervals();
         recurse<Function *>(eModule->getFunctionList());
         recurse<PLTTrampoline *>(eModule->getPLTList());
         recurse<VTable *>(eModule->getVTableList());
@@ -1110,13 +1102,14 @@ public:
         eCtx.section = eSection;
         gCtx.setSectionAlignment(eSection->getAlignment());
 
+        if (eSection->getSize()) {
+            // Attempt to create a single byte interval per section
+            // (further gtirb analyses can split this up if desired)
+            gCtx.byteInterval = get_canonical_interval(
+                eSection->getAddress(), eSection->getSize());
+        }
+
         if (!eSection->isCode()) {
-            // Only add byte intervals for non-code sections. Code sections will
-            // have byte intervals added on a function-by-function basis.
-            if (eSection->getSize()) {
-                gCtx.byteInterval = get_canonical_interval(
-                    eSection->getAddress(), eSection->getSize());
-            }
             // If it is not a code section, add all of the bytes for the section
             // now. Bytes from code sections will be added function by function
             // later.
@@ -1136,9 +1129,6 @@ public:
                 // (which may not be completely filled out in egalito)
                 std::copy(sec_start, sec_end, intervalBegin);
             }
-        }
-        else {
-            interval_addrs.push_back(eSection->getAddress());
         }
         recurse<DataVariable *>(eSection);
         recurse<GlobalVariable *>(eSection->getGlobalVariables());
@@ -1367,6 +1357,13 @@ public:
         if (blockOffset + block->getSize() > gCtx.byteInterval->getSize()) {
             std::cout << "ERROR: End of block at " << block->getAddress()
                       << " falls outside of bounds of byte interval for "
+                      << eCtx.function->getName() << std::endl;
+            return;
+        }
+        if (block->getAddress() + block->getSize() >
+            eCtx.function->getAddress() + eCtx.function->getSize()) {
+            std::cout << "WARNING: End of block at " << block->getAddress()
+                      << " falls outside of bounds of function "
                       << eCtx.function->getName() << std::endl;
             return;
         }
