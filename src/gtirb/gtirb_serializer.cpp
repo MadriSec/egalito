@@ -284,6 +284,16 @@ public:
         }
 
         /**
+         * @brief Check if symbol info already exists for a GTIRB symbol
+         */
+        bool symbolInfoExists(gtirb::Symbol *gSymbol) {
+            assert(module);
+            auto &auxInfo = *module
+                                 ->getAuxData<gtirb::schema::ElfSymbolInfoAD>();
+            return auxInfo.count(gSymbol->getUUID()) != 0;
+        }
+
+        /**
          * @brief Add elf symbol info to the aux data associated with a gtirb
          * symbol
          */
@@ -593,6 +603,10 @@ public:
     // If the block is already created this maps the address to the size of the
     // block Otherwise, it maps the address to a block of size 0
     std::map<address_t, size_t> block_addrs;
+    /// \brief Map of symbols that have yet to be forwarded. Forwarding of these
+    /// symbols should be postponed until ELF parsing is complete, and target
+    /// symbols have been created.
+    std::map<gtirb::Symbol *, address_t> forward_symbols;
 
     /**
      * @brief Check if a symbol name is using Egalito's internal jump
@@ -965,6 +979,14 @@ public:
                                                      << " at " << offset);
         }
 
+        // Once symbols have been traversed, forward any symbols that were
+        // missing targets
+        for (auto &[gSymbol, target_addr] : forward_symbols) {
+            gtirb::Symbol *gTarget = get_canonical_symbol(
+                target_addr, std::nullopt, gCtx.module);
+            gCtx.addSymbolForwarding(gSymbol, gTarget);
+        }
+
         // Add data blocks for regions that aren't covered by existing ones
 
         // Keep a pointer to the current location in each byte interval,
@@ -1189,10 +1211,9 @@ public:
      */
     inline bool is_forwarded_symbol(DataVariable *variable) {
         auto sectionName = variable->getParent()->getName();
-        return variable->getTargetSymbol() &&
-               (variable->getIsCopy() ||
-                   (sectionName.find(".plt") != std::string::npos) ||
-                   (sectionName.find(".got") != std::string::npos));
+        return (variable->getIsCopy() ||
+                (sectionName.find(".plt") != std::string::npos) ||
+                (sectionName.find(".got") != std::string::npos));
     }
 
     /**
@@ -1208,8 +1229,8 @@ public:
         // Ensure a data block will start at this address
         registerDataBlock(variable->getAddress(), variable->getSize());
 
-        if (!is_forwarded_symbol(variable)) {
-            Link *dest = variable->getDest();
+        Link *dest = variable->getDest();
+        if (dest && !is_forwarded_symbol(variable)) {
             // "Dest" variables don't seem to need a symbol,
             // we just need to create a symbolic reference from this address
             log_chunk("  Type: Link");
@@ -1230,22 +1251,26 @@ public:
             variable->setName(LinkInfo::symAddrName(variable->getAddress()));
         }
 
-        // Generate a name for the symbol at this address, and add forwarding to
-        // a non-addressed symbol with the target name.
-        Symbol *target = variable->getTargetSymbol();
-        // ('target' seems to always be specified if 'dest' is not)
-        assert(target);
-
         // The symbol has to be created so the symbol forwarding table can be
         // made
         gtirb::Symbol *gSymbol = get_canonical_symbol(
             variable->getAddress(), variable->getName(), gCtx.module);
 
         log_chunk("  Type: Target");
+        log_chunk("  Symbol name: ", gSymbol->getName());
+
+        // Generate a name for the symbol at this address, and add forwarding to
+        // a non-addressed symbol with the target name.
+        Symbol *target = variable->getTargetSymbol();
+        if (!target) {
+            log_chunk("  No Target");
+            // Queue symbol forwarding for after we have finished parsing
+            forward_symbols[gSymbol] = dest->getTargetAddress();
+            return;
+        }
         log_chunk("  Target name: ", target->getName());
         log_chunk("  Target addr: ", target->getAddress());
         log_chunk("  Target type: ", target->getType());
-        log_chunk("  Symbol name: ", gSymbol->getName());
 
         // TODO: Deal with aliases?
 
@@ -1255,22 +1280,15 @@ public:
         // __cxa_finalize) are listed
         //       but I am not 100% sure that they don't have a less ambiguous
         //       reference elsewhere
-        auto existingTargets = gCtx.module->findSymbols(target->getName());
-        if (existingTargets.begin() != existingTargets.end()) {
-            // TODO: Is this '&*' syntax to get a pointer to the underlying
-            // object of an iterator okay? it looks abnormal.
-            gCtx.addSymbolForwarding(gSymbol, &*existingTargets.begin());
-        }
-        else {
-            // Add a proxyblock to this?
-            gtirb::Symbol *gTarget = get_canonical_symbol(
-                std::nullopt, target->getName(), gCtx.module);
+        gtirb::Symbol *gTarget = get_canonical_symbol(
+            std::nullopt, target->getName(), gCtx.module);
+        if (!gCtx.symbolInfoExists(gTarget)) {
             gCtx.addSymbolInfo(gTarget, target->getSize(),
                 eSymTypeStr(target->getType()),
                 eSymBindingStr(target->getBind()), "DEFAULT",
                 target->getSectionIndex());
-            gCtx.addSymbolForwarding(gSymbol, gTarget);
         }
+        gCtx.addSymbolForwarding(gSymbol, gTarget);
     }
 
     /**
