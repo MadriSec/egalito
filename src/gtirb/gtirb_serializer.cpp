@@ -362,6 +362,12 @@ public:
      * hidden eventually
      */
     struct LinkInfo {
+        enum Type {
+            TYPE_CONST,
+            TYPE_ADDR,
+            TYPE_FORWARD,
+        } type = TYPE_CONST;
+
         /// \brief The address from which the symbolic reference originates
         address_t src_addr;
         /// \brief A name for the block of the origin of the symbolic refernece
@@ -397,24 +403,9 @@ public:
             address_t dst_addr)
             : src_addr(src_addr), src_name(src_name), dst_addr(dst_addr) {}
 
-        LinkInfo(address_t src_addr, std::optional<std::string> src_name,
-            std::string dst_name)
-            : src_addr(src_addr), src_name(src_name), dst_name(dst_name) {}
-
-        LinkInfo(address_t src_addr, std::optional<std::string> src_name,
-            address_t dst_addr, std::string dst_name)
-            : src_addr(src_addr),
-              src_name(src_name),
-              dst_addr(dst_addr),
-              dst_name(dst_name) {}
-
         static LinkInfo from_link(address_t src_addr, Link *link,
-            std::optional<std::string> src_name = std::nullopt,
-            std::optional<address_t> base_addr = std::nullopt,
-            std::optional<std::string> base_name = std::nullopt) {
+            std::optional<std::string> src_name) {
             LinkInfo li(src_addr, src_name, link->getTargetAddress());
-            li.base_dst_addr = base_addr;
-            li.base_dst_name = base_name;
             if (auto *target = link->getTarget()) {
                 li.dst_name = target->getName();
             }
@@ -479,6 +470,27 @@ public:
             // if (link->isRIPRelative()) {
             //     // log_chunk("  RIPRelative: True");
             // }
+            return li;
+        }
+
+        static LinkInfo from_link(address_t src_addr, Link *link,
+            std::optional<std::string> src_name,
+            std::optional<address_t> base_addr,
+            std::optional<std::string> base_name) {
+            LinkInfo li = from_link(src_addr, link, src_name);
+            li.base_dst_addr = base_addr;
+            li.base_dst_name = base_name;
+            li.type = TYPE_ADDR;
+            return li;
+        }
+
+        static LinkInfo forward_from_link(address_t src_addr, Link *link,
+            std::optional<std::string> src_name) {
+            LinkInfo li = from_link(src_addr, link, src_name);
+            // Do not use offsets for symbol forwarding
+            li.dst_addr = link->getTargetAddress();
+            li.dst_offset = 0;
+            li.type = TYPE_FORWARD;
             return li;
         }
 
@@ -603,10 +615,6 @@ public:
     // If the block is already created this maps the address to the size of the
     // block Otherwise, it maps the address to a block of size 0
     std::map<address_t, size_t> block_addrs;
-    /// \brief Map of symbols that have yet to be forwarded. Forwarding of these
-    /// symbols should be postponed until ELF parsing is complete, and target
-    /// symbols have been created.
-    std::map<gtirb::Symbol *, address_t> forward_symbols;
 
     /**
      * @brief Check if a symbol name is using Egalito's internal jump
@@ -964,27 +972,27 @@ public:
             auto interval = get_canonical_interval(linkInfo.src_addr);
             assert(interval);
 
-            auto base = get_base_from_link(linkInfo, gModule);
             auto offset = gtirb::Addr(linkInfo.src_addr) -
                           *interval->getAddress();
-            if (base) {
-                interval->addSymbolicExpression<gtirb::SymAddrAddr>(
-                    offset, linkInfo.dst_scale, linkInfo.dst_offset, dst, base);
-            }
-            else {
-                interval->addSymbolicExpression<gtirb::SymAddrConst>(
-                    offset, linkInfo.dst_offset, dst, linkInfo.attrs);
+
+            switch (linkInfo.type) {
+                case LinkInfo::TYPE_ADDR: {
+                    auto base = get_base_from_link(linkInfo, gModule);
+                    interval->addSymbolicExpression<gtirb::SymAddrAddr>(offset,
+                        linkInfo.dst_scale, linkInfo.dst_offset, dst, base);
+                } break;
+                case LinkInfo::TYPE_CONST: {
+                    interval->addSymbolicExpression<gtirb::SymAddrConst>(
+                        offset, linkInfo.dst_offset, dst, linkInfo.attrs);
+                } break;
+                case LinkInfo::TYPE_FORWARD: {
+                    gtirb::Symbol *src = get_canonical_symbol(
+                        linkInfo.src_addr, linkInfo.src_name, gCtx.module);
+                    gCtx.addSymbolForwarding(src, dst);
+                } break;
             }
             LOG(10, "Added symbolic expression for " << linkInfo.label()
                                                      << " at " << offset);
-        }
-
-        // Once symbols have been traversed, forward any symbols that were
-        // missing targets
-        for (auto &[gSymbol, target_addr] : forward_symbols) {
-            gtirb::Symbol *gTarget = get_canonical_symbol(
-                target_addr, std::nullopt, gCtx.module);
-            gCtx.addSymbolForwarding(gSymbol, gTarget);
         }
 
         // Add data blocks for regions that aren't covered by existing ones
@@ -1264,8 +1272,8 @@ public:
         Symbol *target = variable->getTargetSymbol();
         if (!target) {
             log_chunk("  No Target");
-            // Queue symbol forwarding for after we have finished parsing
-            forward_symbols[gSymbol] = dest->getTargetAddress();
+            links.push_back(LinkInfo::forward_from_link(
+                variable->getAddress(), dest, variable->getName()));
             return;
         }
         log_chunk("  Target name: ", target->getName());
