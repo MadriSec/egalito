@@ -1425,6 +1425,25 @@ public:
         recurse<Instruction *>(block);
     }
 
+    /**
+     * @brief Function for obtaining the displacement offset from a linked
+     * instruction.
+     *
+     * @param linked_instr Instruction to search
+     * @return int Displacement offset (std::string::npos if not found)
+     */
+    int findLinkOffset(LinkedInstructionBase *linked_instr) {
+        auto *semantic = dynamic_cast<InstructionSemantic *>(linked_instr);
+
+        auto assembly = semantic->getAssembly();
+        auto operand = assembly->getAsmOperands()
+                           ->getOperands()[linked_instr->getIndex()];
+        std::string disp_str((char *)&operand.mem.disp);
+        auto instr_string = semantic->getData();
+
+        return instr_string.find(disp_str);
+    }
+
     void visit(Instruction *instruction) {
         // Instructions within functions are deserialized one at a time
         auto instrAddr = instruction->getAddress();
@@ -1464,6 +1483,19 @@ public:
                          semantic)) {
                 op_offset = li->getDispOffset();
                 log_chunk("  Link Type: LinkedInstruction");
+
+                // NOTE: One known cause of this error is a failure to correctly
+                // parse the displacement size in
+                // MakeSemantic::determineDisplacementSize
+                if (op_offset == data.size()) {
+                    op_offset = findLinkOffset(li);
+                    if (op_offset == std::string::npos) {
+                        std::cerr << "ERROR: Instruction at " << instrAddr
+                                  << " contains an invalid link offset"
+                                  << std::endl;
+                        return;
+                    }
+                }
             }
             else {
                 throw(std::runtime_error("Cannot determine link type"));
