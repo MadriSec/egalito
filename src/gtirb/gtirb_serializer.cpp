@@ -3,6 +3,7 @@
 
 #include "gtirb_serializer.h"
 
+#include "analysis/jumptable.h"
 #include "log/log.h"
 
 #include "chunk/program.h"
@@ -1525,8 +1526,10 @@ public:
         auto entryAddr = jumpTableEntry->getAddress();
         auto entryName = jumpTableEntry->getName();
         auto link = jumpTableEntry->getLink();
-        auto baseAddress = eCtx.jtable->getAddress();
-        auto baseName = eCtx.jtable->getName();
+        auto baseLink = eCtx.jtable->getDescriptor()->getTargetBaseLink();
+        auto baseAddress = baseLink->getTargetAddress();
+        auto baseName = baseLink->getTarget()->getName();
+
         links.push_back(LinkInfo::from_link(
             entryAddr, link, entryName, baseAddress, baseName));
     }
