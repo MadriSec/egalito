@@ -505,6 +505,17 @@ public:
         }
 
         /**
+         * @brief Generate a non-ambiguous name based on the destination
+         * symbol's name and address
+         */
+        static std::string disambigName(
+            std::string dst_name, address_t dst_addr) {
+            std::stringstream ss;
+            ss << dst_name << "_disambig_" << dst_addr;
+            return ss.str();
+        }
+
+        /**
          * @brief Fetches the symbol associated with the given name if it
          * exists
          *
@@ -616,6 +627,8 @@ public:
     // If the block is already created this maps the address to the size of the
     // block Otherwise, it maps the address to a block of size 0
     std::map<address_t, size_t> block_addrs;
+    /// \brief Record of duplicate symbol names in need of disambiguation.
+    std::map<std::string, bool> duplicate_sym_names;
 
     /**
      * @brief Check if a symbol name is using Egalito's internal jump
@@ -639,12 +652,17 @@ public:
      */
     std::string get_gtirb_name(std::optional<std::string> sym_name,
         std::optional<address_t> sym_addr) {
-        if (sym_name && !symbolNameIsIJump(*sym_name)) {
-            // For fuzzyfunc, make sure we replace the invalid '-' char
-            std::replace(sym_name->begin(), sym_name->end(), '-', '_');
-            return *sym_name;
+        if (!sym_name || symbolNameIsIJump(*sym_name)) {
+            return LinkInfo::symAddrName(*sym_addr);
         }
-        return LinkInfo::symAddrName(*sym_addr);
+        else if (sym_addr && duplicate_sym_names[*sym_name]) {
+            // Disambiguate symbol names marked as duplicate
+            return LinkInfo::disambigName(*sym_name, *sym_addr);
+        }
+
+        // For fuzzyfunc, make sure we replace the invalid '-' char
+        std::replace(sym_name->begin(), sym_name->end(), '-', '_');
+        return *sym_name;
     }
 
     /**
@@ -763,11 +781,26 @@ public:
         // address is wrong
         gtirb::Symbol *sym_out = LinkInfo::symbol_from_name(
             sym_name, sym_addr, module);
+
         // If there is no name, but there is an address, use the existing
         // symbol if it matches
         if (!sym_out) {
             sym_out = LinkInfo::symbol_from_addr(sym_addr, sym_name, module);
         }
+        else if (sym_out->getAddress() && sym_addr &&
+                 ((address_t)*sym_out->getAddress() != *sym_addr)) {
+            // If we found the symbol, but the address is mismatched,
+            // flag the duplicate name and disambiguate the symbols
+            duplicate_sym_names[*sym_name] = true;
+
+            auto original_disambig = LinkInfo::disambigName(
+                *sym_name, (address_t)*sym_out->getAddress());
+            sym_out->setName(original_disambig);
+
+            sym_name = LinkInfo::disambigName(*sym_name, *sym_addr);
+            sym_out = nullptr;
+        }
+
         // Otherwise, create the symbol if necessary
         if (!sym_out) {
             sym_out = LinkInfo::create_symbol(sym_addr, *sym_name, C, module);
