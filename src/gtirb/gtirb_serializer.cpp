@@ -443,6 +443,7 @@ public:
                 auto extSym = extSymLink->getExternalSymbol();
                 li.dst_name = extSym->getName();
                 li.dst_addr = std::nullopt;
+                li.dst_offset = extSymLink->getOffset();
             }
             else if (auto extSymLink =
                          dynamic_cast<InternalAndExternalDataLink *>(link)) {
