@@ -220,6 +220,15 @@ DataVariable *DataSection::findVariable(address_t address) {
 #endif
 }
 
+DataVariable *DataSection::findVariableContaining(address_t address) {
+    for(auto dv : CIter::children(this)) {
+        if (dv->getRange().contains(address)) {
+            return dv;
+        }
+    }
+    return nullptr;
+}
+
 void DataSection::serialize(ChunkSerializerOperations &op,
     ArchiveStreamWriter &writer) {
 
@@ -513,6 +522,13 @@ DataVariable *DataRegionList::findVariable(const std::string &name) {
 DataVariable *DataRegionList::findVariable(address_t address) {
     auto region = findRegionContaining(address);
     if(region) return region->findVariable(address);
+
+    return nullptr;
+}
+
+DataVariable *DataRegionList::findVariableContaining(address_t address) {
+    auto section = findDataSectionContaining(address);
+    if(section) return section->findVariableContaining(address);
 
     return nullptr;
 }
