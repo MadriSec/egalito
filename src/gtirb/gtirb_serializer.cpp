@@ -1474,7 +1474,15 @@ public:
         std::string disp_str((char *)&operand.mem.disp);
         auto instr_string = semantic->getData();
 
-        return instr_string.find(disp_str);
+        auto disp_offset = instr_string.find(disp_str);
+        // Make sure there is only one byte sequence matching the displacement
+        // value.
+        if ((disp_offset != std::string::npos) &&
+            (instr_string.find(disp_str, disp_offset + 1) ==
+                std::string::npos)) {
+            return disp_offset;
+        }
+        return std::string::npos;
     }
 
     void visit(Instruction *instruction) {
