@@ -404,6 +404,109 @@ public:
             address_t dst_addr)
             : src_addr(src_addr), src_name(src_name), dst_addr(dst_addr) {}
 
+        static LinkInfo from_link(address_t src_addr, Link *link,
+            std::optional<std::string> src_name) {
+            LinkInfo li(src_addr, src_name, link->getTargetAddress());
+            if (auto *target = link->getTarget()) {
+                li.dst_name = target->getName();
+            }
+
+            if (dynamic_cast<PLTLink *>(link)) {
+                li.attrs.addFlag(gtirb::SymAttribute::PltRef);
+            }
+            else if (dynamic_cast<OffsetLink *>(link)) {
+                auto *target = link->getTarget();
+                li.dst_addr = target->getAddress();
+                li.dst_offset = link->getTargetAddress() - target->getAddress();
+            }
+            else if (dynamic_cast<DataOffsetLink *>(link)) {
+                // Storing all links as base + offset causes some binaries to
+                // segfault, and does not match the behavior of ddisasm.
+                // Creating a separate symbol matches behavior best.
+                li.dst_name = symAddrName(*li.dst_addr);
+
+                // We do not make data blocks for dynamic sections, so we need
+                // to use symbol offsets to reach the target
+                auto *section = dynamic_cast<DataSection *>(link->getTarget());
+                if (section->getType() == DataSection::TYPE_DYNAMIC) {
+                    li.dst_addr = section->getAddress();
+                    li.dst_offset = link->getTargetAddress() -
+                                    section->getAddress();
+                }
+                // External jumps should point to the local copy of the external
+                // symbol they will be forwarded to
+                else if (link->isExternalJump()) {
+                    auto ext_target = section->findVariableContaining(
+                        link->getTargetAddress());
+                    if (ext_target && ext_target->getIsCopy()) {
+                        li.dst_name = ext_target->getName();
+                        li.dst_addr = ext_target->getAddress();
+                        li.dst_offset = link->getTargetAddress() - *li.dst_addr;
+                    }
+                }
+
+                if (section->getName() == ".got") {
+                    li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
+                }
+            }
+            else if (auto extSymLink = dynamic_cast<ExternalSymbolLink *>(
+                         link)) {
+                auto extSym = extSymLink->getExternalSymbol();
+                li.dst_name = extSym->getName();
+                li.dst_addr = std::nullopt;
+                li.dst_offset = extSymLink->getOffset();
+            }
+            else if (auto extSymLink =
+                         dynamic_cast<InternalAndExternalDataLink *>(link)) {
+                auto extSym = extSymLink->getExternalSymbol();
+                li.dst_name = extSym->getName();
+                li.dst_addr = std::nullopt;
+            }
+            // TODO: How do each of these map onto gtirb constructs?
+            // if (dynamic_cast<JumpTableLink *>(link)) {
+            //     This might map onto symAddrAddr, at least in the one test
+            //     case I looked at
+            //     // log_chunk("  Type: JumpTableLink");
+            // }
+            // if (dynamic_cast<CopyRelocLink *>(link)) {
+            //     // log_chunk("  Type: CopyRelocLink");
+            // }
+            // if (dynamic_cast<SymbolOnlyLink *>(link)) {
+            //     // log_chunk("  Type: CopyRelocLink");
+            // }
+            // if (dynamic_cast<AbsoluteDataLink *>(link)) {
+            //     // log_chunk("  Type: AbsoluteDataLink");
+            // }
+            // if (dynamic_cast<TLSDataOffsetLink *>(link)) {
+            //     // log_chunk("  Type: TLSDataOffsetLink");
+            // }
+            // if (link->isRIPRelative()) {
+            //     // log_chunk("  RIPRelative: True");
+            // }
+            return li;
+        }
+
+        static LinkInfo from_link(address_t src_addr, Link *link,
+            std::optional<std::string> src_name,
+            std::optional<address_t> base_addr,
+            std::optional<std::string> base_name) {
+            LinkInfo li = from_link(src_addr, link, src_name);
+            li.base_dst_addr = base_addr;
+            li.base_dst_name = base_name;
+            li.type = TYPE_ADDR;
+            return li;
+        }
+
+        static LinkInfo forward_from_link(address_t src_addr, Link *link,
+            std::optional<std::string> src_name) {
+            LinkInfo li = from_link(src_addr, link, src_name);
+            // Do not use offsets for symbol forwarding
+            li.dst_addr = link->getTargetAddress();
+            li.dst_offset = 0;
+            li.type = TYPE_FORWARD;
+            return li;
+        }
+
         /**
          * @brief Generate a name based on the destination symbol's address
          */
@@ -538,109 +641,6 @@ public:
     std::map<address_t, size_t> block_addrs;
     /// \brief Record of duplicate symbol names in need of disambiguation.
     std::map<std::string, bool> duplicate_sym_names;
-
-    LinkInfo info_from_link(
-        address_t src_addr, Link *link, std::optional<std::string> src_name) {
-        LinkInfo li(src_addr, src_name, link->getTargetAddress());
-        if (auto *target = link->getTarget()) {
-            li.dst_name = target->getName();
-        }
-
-        if (dynamic_cast<PLTLink *>(link)) {
-            li.attrs.addFlag(gtirb::SymAttribute::PltRef);
-        }
-        else if (dynamic_cast<OffsetLink *>(link)) {
-            auto *target = link->getTarget();
-            li.dst_addr = target->getAddress();
-            li.dst_offset = link->getTargetAddress() - target->getAddress();
-        }
-        else if (dynamic_cast<DataOffsetLink *>(link)) {
-            // Storing all links as base + offset causes some binaries to
-            // segfault, and does not match the behavior of ddisasm.
-            // Creating a separate symbol matches behavior best.
-            li.dst_name = LinkInfo::symAddrName(*li.dst_addr);
-
-            // We do not make data blocks for dynamic sections, so we need
-            // to use symbol offsets to reach the target
-            auto *section = dynamic_cast<DataSection *>(link->getTarget());
-            if (section->getType() == DataSection::TYPE_DYNAMIC) {
-                li.dst_addr = section->getAddress();
-                li.dst_offset = link->getTargetAddress() -
-                                section->getAddress();
-            }
-            // External jumps should point to the local copy of the external
-            // symbol they will be forwarded to
-            else if (link->isExternalJump()) {
-                auto ext_target = eCtx.module->getDataRegionList()
-                                      ->findVariableContaining(
-                                          link->getTargetAddress());
-                if (ext_target && ext_target->getIsCopy()) {
-                    li.dst_name = ext_target->getName();
-                    li.dst_addr = ext_target->getAddress();
-                    li.dst_offset = link->getTargetAddress() - *li.dst_addr;
-                }
-            }
-
-            if (section->getName() == ".got") {
-                li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
-            }
-        }
-        else if (auto extSymLink = dynamic_cast<ExternalSymbolLink *>(link)) {
-            auto extSym = extSymLink->getExternalSymbol();
-            li.dst_name = extSym->getName();
-            li.dst_addr = std::nullopt;
-            li.dst_offset = extSymLink->getOffset();
-        }
-        else if (auto extSymLink = dynamic_cast<InternalAndExternalDataLink *>(
-                     link)) {
-            auto extSym = extSymLink->getExternalSymbol();
-            li.dst_name = extSym->getName();
-            li.dst_addr = std::nullopt;
-        }
-
-        // TODO: How do each of these map onto gtirb constructs?
-        // if (dynamic_cast<JumpTableLink *>(link)) {
-        //     This might map onto symAddrAddr, at least in the one test
-        //     case I looked at
-        //     // log_chunk("  Type: JumpTableLink");
-        // }
-        // if (dynamic_cast<CopyRelocLink *>(link)) {
-        //     // log_chunk("  Type: CopyRelocLink");
-        // }
-        // if (dynamic_cast<SymbolOnlyLink *>(link)) {
-        //     // log_chunk("  Type: CopyRelocLink");
-        // }
-        // if (dynamic_cast<AbsoluteDataLink *>(link)) {
-        //     // log_chunk("  Type: AbsoluteDataLink");
-        // }
-        // if (dynamic_cast<TLSDataOffsetLink *>(link)) {
-        //     // log_chunk("  Type: TLSDataOffsetLink");
-        // }
-        // if (link->isRIPRelative()) {
-        //     // log_chunk("  RIPRelative: True");
-        // }
-        return li;
-    }
-
-    LinkInfo info_from_link(address_t src_addr, Link *link,
-        std::optional<std::string> src_name, std::optional<address_t> base_addr,
-        std::optional<std::string> base_name) {
-        LinkInfo li = info_from_link(src_addr, link, src_name);
-        li.base_dst_addr = base_addr;
-        li.base_dst_name = base_name;
-        li.type = LinkInfo::TYPE_ADDR;
-        return li;
-    }
-
-    LinkInfo forward_from_link(
-        address_t src_addr, Link *link, std::optional<std::string> src_name) {
-        LinkInfo li = info_from_link(src_addr, link, src_name);
-        // Do not use offsets for symbol forwarding
-        li.dst_addr = link->getTargetAddress();
-        li.dst_offset = 0;
-        li.type = LinkInfo::TYPE_FORWARD;
-        return li;
-    }
 
     /**
      * @brief Check if a symbol name is using Egalito's internal jump
@@ -1292,7 +1292,7 @@ public:
                 log_chunk("  Dest name: ", dest->getTarget()->getName());
             }
             log_chunk("  Dest addr: ", dest->getTargetAddress());
-            links.push_back(info_from_link(
+            links.push_back(LinkInfo::from_link(
                 variable->getAddress(), dest, variable->getName()));
             return;
         }
@@ -1318,7 +1318,7 @@ public:
         Symbol *target = variable->getTargetSymbol();
         if (!target) {
             log_chunk("  No Target");
-            links.push_back(forward_from_link(
+            links.push_back(LinkInfo::forward_from_link(
                 variable->getAddress(), dest, variable->getName()));
             return;
         }
@@ -1555,7 +1555,7 @@ public:
             }
             log_chunk("  Link offset: ", op_offset);
 
-            links.push_back(info_from_link(
+            links.push_back(LinkInfo::from_link(
                 instrAddr + op_offset, link, eCtx.function->getName()));
         }
     }
@@ -1615,8 +1615,8 @@ public:
         auto baseAddress = baseLink->getTargetAddress();
         auto baseName = baseLink->getTarget()->getName();
 
-        links.push_back(
-            info_from_link(entryAddr, link, entryName, baseAddress, baseName));
+        links.push_back(LinkInfo::from_link(
+            entryAddr, link, entryName, baseAddress, baseName));
     }
 
     void visit(MarkerList *markerList) {
