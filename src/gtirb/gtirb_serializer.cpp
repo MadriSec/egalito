@@ -61,6 +61,12 @@ struct BinaryType {
     static constexpr const char *Name = "binaryType";
     typedef std::vector<std::string> Type;
 };
+
+/// \brief Auxiliary data covering ELF section properties.
+struct ElfSectionProperties {
+    static constexpr const char *Name = "elfSectionProperties";
+    typedef std::map<gtirb::UUID, std::tuple<uint64_t, uint64_t>> Type;
+};
 }
 }
 
@@ -328,6 +334,10 @@ public:
             libraryPaths.push_back(libraryPath);
         }
 
+        /**
+         * @brief Define the binary type (used to differentiate between PIE and
+         * NOPIE builds)
+         */
         void setBinaryType(ElfMap *elfMap) {
             assert(module);
             auto &binType = *module->getAuxData<gtirb::schema::BinaryType>();
@@ -342,11 +352,50 @@ public:
             }
         }
 
+        /**
+         * @brief Set the section alignment
+         */
         void setSectionAlignment(size_t alignment) {
             assert(module);
             assert(section);
             auto &Alignment = *module->getAuxData<gtirb::schema::Alignment>();
             Alignment[section->getUUID()] = alignment;
+        }
+
+        /**
+         * @brief Convert the Egalito section type to an sh_type value
+         */
+        uint64_t getSectionType(DataSection *eSection) {
+            switch (eSection->getType()) {
+                case DataSection::TYPE_BSS:
+                    return SHT_NOBITS;
+                case DataSection::TYPE_DATA:
+                    return SHT_PROGBITS;
+                case DataSection::TYPE_CODE:
+                    return SHT_PROGBITS;
+                case DataSection::TYPE_INIT_ARRAY:
+                    return SHT_INIT_ARRAY;
+                case DataSection::TYPE_FINI_ARRAY:
+                    return SHT_FINI_ARRAY;
+                case DataSection::TYPE_DYNAMIC:
+                    return SHT_DYNAMIC;
+                default:
+                    return SHT_NULL;
+            }
+        }
+
+        /**
+         * @brief Set the section type and flags in the section properties table
+         */
+        void setSectionProperties(DataSection *eSection) {
+            assert(module);
+            assert(section);
+
+            uint64_t type = getSectionType(eSection);
+            uint64_t flags = eSection->getPermissions();
+            auto &sectionProperties =
+                *module->getAuxData<gtirb::schema::ElfSectionProperties>();
+            sectionProperties[section->getUUID()] = {type, flags};
         }
     } gCtx;
 
@@ -960,6 +1009,8 @@ public:
             gtirb::schema::BinaryType::Type());
         gModule->addAuxData<gtirb::schema::Alignment>(
             gtirb::schema::Alignment::Type());
+        gModule->addAuxData<gtirb::schema::ElfSectionProperties>(
+            gtirb::schema::ElfSectionProperties::Type());
 
         // TODO: There's probably a real place to get this info within egalito
         gModule->setFileFormat(gtirb::FileFormat::ELF);
@@ -1177,6 +1228,7 @@ public:
         gCtx.section = gSection;
         eCtx.section = eSection;
         gCtx.setSectionAlignment(eSection->getAlignment());
+        gCtx.setSectionProperties(eSection);
 
         if (eSection->getSize()) {
             // Attempt to create a single byte interval per section
@@ -1658,6 +1710,8 @@ void GtirbSerializer::serialize(Program *program, std::string filename) {
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::LibraryPaths>();
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::BinaryType>();
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::Alignment>();
+    gtirb::AuxDataContainer::registerAuxDataType<
+        gtirb::schema::ElfSectionProperties>();
     LOG(1, "GTIRB serialization");
 
     std::ofstream chunklog;
