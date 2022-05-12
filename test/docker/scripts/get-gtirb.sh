@@ -10,7 +10,7 @@ if [[ "$(lsb_release --short --id)" == "Ubuntu" ]]; then
     # If we're on ubuntu, attempt to install from apt
     apt-get install -y software-properties-common wget gnupg
     wget -O - https://download.grammatech.com/gtirb/files/apt-repo/conf/apt.gpg.key | apt-key add -
-    echo "deb https://download.grammatech.com/gtirb/files/apt-repo $(lsb_release --codename --short) unstable" | tee -a /etc/apt/sources.list
+    echo "deb https://download.grammatech.com/gtirb/files/apt-repo $(lsb_release --codename --short) stable" | tee -a /etc/apt/sources.list
 
     add-apt-repository ppa:mhier/libboost-latest
     apt-get update -y
