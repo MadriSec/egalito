@@ -5,22 +5,28 @@ include:
 variables:
     GIT_SUBMODULE_STRATEGY: recursive
     GIT_STRATEGY: clone
-    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/test/debian-buster:gtirb
-    UBUNTU18_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-18.04:gtirb
-    UBUNTU20_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-20.04:gtirb
+    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/test/debian-buster
+    UBUNTU18_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-18.04
+    UBUNTU20_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-20.04
     # AARCH64_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/aarch64
     # ARM_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/egalito/arm
     DOCKER_DIR: ./test/docker
+    DOCKER_TAG: gtirb
+    MAIN_BRANCH: metis-main
+
 
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
       when: never
-    - if: '$CI_COMMIT_BRANCH'
+    - if: $CI_COMMIT_BRANCH != $MAIN_BRANCH
+      variables:
+        DOCKER_TAG: $CI_COMMIT_REF_SLUG
 
 stages:
   - check-format
+  - update-docker
   - build
   - test
   - sast
@@ -34,7 +40,7 @@ stages:
 
 check-format:
   stage: check-format
-  image: $UBUNTU18_IMAGE
+  image: $UBUNTU18_IMAGE:$DOCKER_TAG
   script:
     - pre-commit install-hooks
     - pre-commit run --all-files --show-diff-on-failure
@@ -59,13 +65,30 @@ check-format:
       ================================================================================
       EOF
 
+update-docker:
+  stage: update-docker
+  image: docker
+  services:
+    - docker:dind
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - cd test/docker && TAG_VERSION=$DOCKER_TAG ./build_x86.sh && cd ../../
+    - docker push registry.gitlab.com/egalito/egalito/test/ubuntu-20.04:$DOCKER_TAG
+    - docker push registry.gitlab.com/egalito/egalito/test/ubuntu-18.04:$DOCKER_TAG
+    - docker push registry.gitlab.com/egalito/egalito/test/debian-buster:$DOCKER_TAG
+  rules:
+    - changes:
+        - test/docker/*
+      when: manual
+  variables:
+    DOCKER_BUILDKIT: 1
+
 coverage:
   stage: build
-  needs: []
   artifacts:
     paths:
       - coverage/
-  image: $UBUNTU18_IMAGE
+  image: $UBUNTU18_IMAGE:$DOCKER_TAG
   cache:
     key: "$CI_COMMIT_REF_SLUG-$CI_JOB_NAME"
     paths:
@@ -91,7 +114,6 @@ coverage:
 
 .build-template:
   stage: build
-  needs: []
   artifacts:
     paths:
       - app/
@@ -116,15 +138,15 @@ coverage:
 
 build-ubuntu20:
   extends: .build-template
-  image: $UBUNTU20_IMAGE
+  image: $UBUNTU20_IMAGE:$DOCKER_TAG
 
 build-ubuntu18:
   extends: .build-template
-  image: $UBUNTU18_IMAGE
+  image: $UBUNTU18_IMAGE:$DOCKER_TAG
 
 build-debian:
   extends: .build-template
-  image: $DEBIAN_IMAGE
+  image: $DEBIAN_IMAGE:$DOCKER_TAG
 
 .test-template: &test-template
   variables:
@@ -139,12 +161,12 @@ build-debian:
 tests-ubuntu18:
   extends: .test-template
   needs: [build-ubuntu18]
-  image: $UBUNTU18_IMAGE
+  image: $UBUNTU18_IMAGE:$DOCKER_TAG
 
 gtirb-test-ubuntu18:
   extends: .test-template
   needs: [build-ubuntu18]
-  image: $UBUNTU18_IMAGE
+  image: $UBUNTU18_IMAGE:$DOCKER_TAG
   stage: test
   script:
     - test/gtirb/run_test.sh
@@ -152,10 +174,10 @@ gtirb-test-ubuntu18:
 tests-debian:
   extends: .test-template
   needs: [build-debian]
-  image: $DEBIAN_IMAGE
+  image: $DEBIAN_IMAGE:$DOCKER_TAG
 
 package-ubuntu18:
-  image: $UBUNTU18_IMAGE
+  image: $UBUNTU18_IMAGE:$DOCKER_TAG
   needs: [build-ubuntu18]
   stage: package
   artifacts:
@@ -169,7 +191,7 @@ package-ubuntu18:
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static
 
 package-ubuntu20:
-  image: $UBUNTU20_IMAGE
+  image: $UBUNTU20_IMAGE:$DOCKER_TAG
   needs: [build-ubuntu20]
   stage: package
   artifacts:
@@ -184,7 +206,7 @@ package-ubuntu20:
 
 test-package-ubuntu18:
   stage: test-package
-  image: $UBUNTU18_IMAGE
+  image: $UBUNTU18_IMAGE:$DOCKER_TAG
   needs: [package-ubuntu18]
   script:
     - for file in libegalito*.deb; do apt-get install -y ./${file}; done
@@ -218,8 +240,7 @@ sast:
     expire_in: '1 day'
 
 pages:
-  image: $UBUNTU18_IMAGE
-  needs: []
+  image: $UBUNTU18_IMAGE:$DOCKER_TAG
   only: [main]
   script:
     - apt update && apt install -y doxygen clang graphviz
