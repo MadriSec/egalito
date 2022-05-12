@@ -21,12 +21,14 @@ workflow:
     - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
       when: never
     - if: $CI_COMMIT_BRANCH != $MAIN_BRANCH
+      changes:
+        - test/docker/*
       variables:
         DOCKER_TAG: $CI_COMMIT_REF_SLUG
 
 stages:
-  - check-format
   - update-docker
+  - check-format
   - build
   - test
   - sast
@@ -37,6 +39,25 @@ stages:
   - echo -e "\e[0Ksection_start:`date +%s`:set_timestamps[collapsed=true]\r\e[0KSetting modification timestamps"
   - bash .ci/reset-modification-timestamps.sh
   - echo -e "\e[0Ksection_end:`date +%s`:set_timestamps\r\e[0K"
+
+update-docker:
+  stage: update-docker
+  image: docker
+  needs: []
+  services:
+    - docker:dind
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - cd test/docker && TAG_VERSION=$DOCKER_TAG ./build_x86.sh && cd ../../
+    - docker push registry.gitlab.com/egalito/egalito/test/ubuntu-20.04:$DOCKER_TAG
+    - docker push registry.gitlab.com/egalito/egalito/test/ubuntu-18.04:$DOCKER_TAG
+    - docker push registry.gitlab.com/egalito/egalito/test/debian-buster:$DOCKER_TAG
+  rules:
+    - changes:
+        - test/docker/*
+      when: manual
+  variables:
+    DOCKER_BUILDKIT: 1
 
 check-format:
   stage: check-format
@@ -64,24 +85,6 @@ check-format:
       use is EXACTLY version 6.0.0. This is available in Ubuntu 18 by default.
       ================================================================================
       EOF
-
-update-docker:
-  stage: update-docker
-  image: docker
-  services:
-    - docker:dind
-  script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - cd test/docker && TAG_VERSION=$DOCKER_TAG ./build_x86.sh && cd ../../
-    - docker push registry.gitlab.com/egalito/egalito/test/ubuntu-20.04:$DOCKER_TAG
-    - docker push registry.gitlab.com/egalito/egalito/test/ubuntu-18.04:$DOCKER_TAG
-    - docker push registry.gitlab.com/egalito/egalito/test/debian-buster:$DOCKER_TAG
-  rules:
-    - changes:
-        - test/docker/*
-      when: manual
-  variables:
-    DOCKER_BUILDKIT: 1
 
 coverage:
   stage: build
