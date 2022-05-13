@@ -29,6 +29,6 @@ cd gtirb
 mkdir build
 cd build
 cmake .. -DGTIRB_BUILD_SHARED_LIBS=OFF
-cmake --build . -- -j 8
+cmake --build . -- -j $(nproc)
 make install
 rm -r /tmp/gtirb-installation

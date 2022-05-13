@@ -5,26 +5,19 @@ include:
 variables:
     GIT_SUBMODULE_STRATEGY: recursive
     GIT_STRATEGY: clone
-    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/test/debian-buster
-    UBUNTU18_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-18.04
-    UBUNTU20_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-20.04
+    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/test/debian-buster:gtirb
+    UBUNTU18_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-18.04:gtirb
+    UBUNTU20_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-20.04:gtirb
     # AARCH64_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/aarch64
     # ARM_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/egalito/arm
     DOCKER_DIR: ./test/docker
-    DOCKER_TAG: gtirb
-    MAIN_BRANCH: metis-main
-
 
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
       when: never
-    - if: $CI_COMMIT_BRANCH != $MAIN_BRANCH
-      changes:
-        - test/docker/*
-      variables:
-        DOCKER_TAG: $CI_COMMIT_REF_SLUG
+    - if: '$CI_COMMIT_BRANCH'
 
 stages:
   - update-docker
@@ -40,28 +33,48 @@ stages:
   - bash .ci/reset-modification-timestamps.sh
   - echo -e "\e[0Ksection_end:`date +%s`:set_timestamps\r\e[0K"
 
-update-docker:
+
+.docker-template:
   stage: update-docker
   image: docker
-  needs: []
   services:
     - docker:dind
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - cd test/docker && TAG_VERSION=$DOCKER_TAG ./build_x86.sh && cd ../../
-    - docker push registry.gitlab.com/egalito/egalito/test/ubuntu-20.04:$DOCKER_TAG
-    - docker push registry.gitlab.com/egalito/egalito/test/ubuntu-18.04:$DOCKER_TAG
-    - docker push registry.gitlab.com/egalito/egalito/test/debian-buster:$DOCKER_TAG
+    - docker build --build-arg "BASE_IMAGE=$DOCKER_IMAGE_BASE" --network=host --target=test --tag "$DOCKER_IMAGE_TAG" -f "test/docker/Dockerfile_x86_64" test/docker/
+    - docker push $DOCKER_IMAGE_TAG
   rules:
-    - changes:
+    # Only run for merges with docker changes
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
         - test/docker/*
-      when: manual
+      when: always
   variables:
     DOCKER_BUILDKIT: 1
 
+update-docker-ubuntu-20:
+  extends: .docker-template
+  variables:
+    DOCKER_IMAGE_TAG: $UBUNTU20_IMAGE
+    DOCKER_IMAGE_BASE: ubuntu:20.04
+
+update-docker-ubuntu-18:
+  extends: .docker-template
+  variables:
+    DOCKER_IMAGE_TAG: $UBUNTU18_IMAGE
+    DOCKER_IMAGE_BASE: ubuntu:18.04
+
+update-docker-debian:
+  extends: .docker-template
+  variables:
+    DOCKER_IMAGE_TAG: $DEBIAN_IMAGE
+    DOCKER_IMAGE_BASE: debian:buster
+  # The debian image has to install from source, which takes extra time.
+  timeout: 2h
+
 check-format:
   stage: check-format
-  image: $UBUNTU18_IMAGE:$DOCKER_TAG
+  image: $UBUNTU18_IMAGE
   script:
     - pre-commit install-hooks
     - pre-commit run --all-files --show-diff-on-failure
@@ -91,7 +104,7 @@ coverage:
   artifacts:
     paths:
       - coverage/
-  image: $UBUNTU18_IMAGE:$DOCKER_TAG
+  image: $UBUNTU18_IMAGE
   cache:
     key: "$CI_COMMIT_REF_SLUG-$CI_JOB_NAME"
     paths:
@@ -141,15 +154,15 @@ coverage:
 
 build-ubuntu20:
   extends: .build-template
-  image: $UBUNTU20_IMAGE:$DOCKER_TAG
+  image: $UBUNTU20_IMAGE
 
 build-ubuntu18:
   extends: .build-template
-  image: $UBUNTU18_IMAGE:$DOCKER_TAG
+  image: $UBUNTU18_IMAGE
 
 build-debian:
   extends: .build-template
-  image: $DEBIAN_IMAGE:$DOCKER_TAG
+  image: $DEBIAN_IMAGE
 
 .test-template: &test-template
   variables:
@@ -164,12 +177,12 @@ build-debian:
 tests-ubuntu18:
   extends: .test-template
   needs: [build-ubuntu18]
-  image: $UBUNTU18_IMAGE:$DOCKER_TAG
+  image: $UBUNTU18_IMAGE
 
 gtirb-test-ubuntu18:
   extends: .test-template
   needs: [build-ubuntu18]
-  image: $UBUNTU18_IMAGE:$DOCKER_TAG
+  image: $UBUNTU18_IMAGE
   stage: test
   script:
     - test/gtirb/run_test.sh
@@ -177,10 +190,10 @@ gtirb-test-ubuntu18:
 tests-debian:
   extends: .test-template
   needs: [build-debian]
-  image: $DEBIAN_IMAGE:$DOCKER_TAG
+  image: $DEBIAN_IMAGE
 
 package-ubuntu18:
-  image: $UBUNTU18_IMAGE:$DOCKER_TAG
+  image: $UBUNTU18_IMAGE
   needs: [build-ubuntu18]
   stage: package
   artifacts:
@@ -194,7 +207,7 @@ package-ubuntu18:
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static
 
 package-ubuntu20:
-  image: $UBUNTU20_IMAGE:$DOCKER_TAG
+  image: $UBUNTU20_IMAGE
   needs: [build-ubuntu20]
   stage: package
   artifacts:
@@ -209,7 +222,7 @@ package-ubuntu20:
 
 test-package-ubuntu18:
   stage: test-package
-  image: $UBUNTU18_IMAGE:$DOCKER_TAG
+  image: $UBUNTU18_IMAGE
   needs: [package-ubuntu18]
   script:
     - for file in libegalito*.deb; do apt-get install -y ./${file}; done
@@ -243,7 +256,7 @@ sast:
     expire_in: '1 day'
 
 pages:
-  image: $UBUNTU18_IMAGE:$DOCKER_TAG
+  image: $UBUNTU18_IMAGE
   only: [main]
   script:
     - apt update && apt install -y doxygen clang graphviz
