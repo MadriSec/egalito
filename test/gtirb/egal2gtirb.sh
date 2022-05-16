@@ -32,6 +32,8 @@ reassemble() {
     # In theory, the default reconstruction policy should exclude these symbols
     # In practice, it does not, so excluding them manually allows the binary to be created
     if ! gtirb-pprinter \
+        --dummy-so 1 \
+        --syntax att \
         --skip-section .plt \
         --skip-symbol __FRAME_END__ \
         --skip-symbol _fini \
@@ -41,7 +43,11 @@ reassemble() {
     fi
     # Attempt to build it with all included symbols
     # (Currently causes this error when the binary is run: unsupported version 0 of Verneed record)
-    if ! gtirb-pprinter --policy complete  --ir $1.gtirb  -b $1-rebuilt-complete -a $1-complete.s; then
+    if ! gtirb-pprinter \
+        --dummy-so 1 \
+        --syntax att \
+        --policy complete \
+        --ir $1.gtirb  -b $1-rebuilt-complete -a $1-complete.s; then
         echo "Reassembly of $1 failed"
     fi
 }

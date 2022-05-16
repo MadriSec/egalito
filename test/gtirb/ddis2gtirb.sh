@@ -40,10 +40,17 @@ fi
 mkdir -p $BIN_OUTPUT/ddisasm
 
 reassemble() {
-    if ! gtirb-pprinter --ir $1.gtirb -b $1-rebuilt; then
+    if ! gtirb-pprinter \
+        --dummy-so 1 \
+        --syntax att \
+        --ir $1.gtirb -b $1-rebuilt; then
         echo "Reassembly of $1 failed"
     fi
-    if ! gtirb-pprinter --policy complete --ir $1.gtirb -a $1-complete.s -b $1-complete; then
+    if ! gtirb-pprinter \
+        --dummy-so 1 \
+        --syntax att \
+        --policy complete \
+        --ir $1.gtirb -a $1-complete.s -b $1-complete; then
         echo "Construction of assembly from $1 failed"
     fi
 }
