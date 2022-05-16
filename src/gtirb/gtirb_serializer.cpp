@@ -1616,7 +1616,19 @@ public:
         log_chunk("- Chunk: !trampoline ", name);
         log_chunk("  Location: ", trampoline->getAddress());
         log_chunk("  GotPLTEntry: ", trampoline->getGotPLTEntry());
-        get_canonical_symbol(std::nullopt, name, gCtx.module);
+        auto gSymbol = get_canonical_symbol(
+            trampoline->getAddress(), name, gCtx.module);
+
+        auto eTarget = trampoline->getExternalSymbol();
+        gtirb::Symbol *gTarget = get_canonical_symbol(
+            std::nullopt, eTarget->getName(), gCtx.module);
+        if (!gCtx.symbolInfoExists(gTarget)) {
+            gCtx.addSymbolInfo(gTarget, eTarget->getSize(),
+                eSymTypeStr(eTarget->getType()),
+                eSymBindingStr(eTarget->getBind()));
+        }
+
+        gCtx.addSymbolForwarding(gSymbol, gTarget);
     }
 
     void visit(JumpTableEntry *jumpTableEntry) {
