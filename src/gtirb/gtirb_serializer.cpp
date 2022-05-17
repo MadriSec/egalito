@@ -63,8 +63,8 @@ struct BinaryType {
 };
 
 /// \brief Auxiliary data covering ELF section properties.
-struct ElfSectionProperties {
-    static constexpr const char *Name = "elfSectionProperties";
+struct SectionProperties {
+    static constexpr const char *Name = "sectionProperties";
     typedef std::map<gtirb::UUID, std::tuple<uint64_t, uint64_t>> Type;
 };
 }
@@ -394,7 +394,7 @@ public:
             uint64_t type = getSectionType(eSection);
             uint64_t flags = eSection->getPermissions();
             auto &sectionProperties =
-                *module->getAuxData<gtirb::schema::ElfSectionProperties>();
+                *module->getAuxData<gtirb::schema::SectionProperties>();
             sectionProperties[section->getUUID()] = {type, flags};
         }
     } gCtx;
@@ -1009,8 +1009,8 @@ public:
             gtirb::schema::BinaryType::Type());
         gModule->addAuxData<gtirb::schema::Alignment>(
             gtirb::schema::Alignment::Type());
-        gModule->addAuxData<gtirb::schema::ElfSectionProperties>(
-            gtirb::schema::ElfSectionProperties::Type());
+        gModule->addAuxData<gtirb::schema::SectionProperties>(
+            gtirb::schema::SectionProperties::Type());
 
         // TODO: There's probably a real place to get this info within egalito
         gModule->setFileFormat(gtirb::FileFormat::ELF);
@@ -1711,7 +1711,7 @@ void GtirbSerializer::serialize(Program *program, std::string filename) {
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::BinaryType>();
     gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::Alignment>();
     gtirb::AuxDataContainer::registerAuxDataType<
-        gtirb::schema::ElfSectionProperties>();
+        gtirb::schema::SectionProperties>();
     LOG(1, "GTIRB serialization");
 
     std::ofstream chunklog;
