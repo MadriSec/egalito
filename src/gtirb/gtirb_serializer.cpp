@@ -1311,8 +1311,8 @@ public:
             return;
         }
         else if (variable->getIsCopy()) {
-            // This is not necessary for a working binary, but it is useful to
-            // differentiate between target vars and copy relocs for debugging
+            // pprinter identifies copy relocations by searching for symbols
+            // with a "_copy" suffix.
             variable->setName(variable->getName() + "_copy");
         }
         else {
@@ -1350,7 +1350,15 @@ public:
         //       reference elsewhere
         gtirb::Symbol *gTarget = get_canonical_symbol(
             std::nullopt, target->getName(), gCtx.module);
-        if (!gCtx.symbolInfoExists(gTarget)) {
+        // Prefer adding symbols for local copies over weak instnces.
+        // This information is used when generating dummy SO files.
+        if (variable->getIsCopy() && !gCtx.symbolInfoExists(gSymbol)) {
+            gCtx.addSymbolInfo(gSymbol, variable->getSize(),
+                eSymTypeStr(target->getType()),
+                eSymBindingStr(target->getBind()), "DEFAULT",
+                target->getSectionIndex());
+        }
+        else if (!variable->getIsCopy() && !gCtx.symbolInfoExists(gTarget)) {
             gCtx.addSymbolInfo(gTarget, target->getSize(),
                 eSymTypeStr(target->getType()),
                 eSymBindingStr(target->getBind()), "DEFAULT",
@@ -1579,9 +1587,13 @@ public:
         log_chunk("- Chunk: !externalSymbol ", eSymbol->getName());
         gtirb::Symbol *gSymbol = get_canonical_symbol(
             std::nullopt, eSymbol->getName(), gCtx.module);
-        gCtx.addSymbolInfo(gSymbol, eSymbol->getSize(),
-            eSymTypeStr(eSymbol->getType()),
-            eSymBindingStr(eSymbol->getBind()));
+        // Symbol info for local instances of weak external symbols will be
+        // added in the DataVariable visitor
+        if (!eSymbol->getLocalWeakInstance()) {
+            gCtx.addSymbolInfo(gSymbol, eSymbol->getSize(),
+                eSymTypeStr(eSymbol->getType()),
+                eSymBindingStr(eSymbol->getBind()));
+        }
     }
     void visit(InitFunction *initFunction) {
         // TODO: Entirely unsure if/how to deal with this
