@@ -221,12 +221,7 @@ DataVariable *DataSection::findVariable(address_t address) {
 }
 
 DataVariable *DataSection::findVariableContaining(address_t address) {
-    for(auto dv : CIter::children(this)) {
-        if (dv->getRange().contains(address)) {
-            return dv;
-        }
-    }
-    return nullptr;
+    return getChildren()->getSpatial()->findContaining(address);
 }
 
 void DataSection::serialize(ChunkSerializerOperations &op,
