@@ -22,8 +22,8 @@ struct ElfSymbolInfo {
 /**
  * @brief Auxiliary data covering ELF section properties.
  * */
-struct ElfSectionProperties {
-    static constexpr const char* Name = "elfSectionProperties";
+struct SectionProperties {
+    static constexpr const char* Name = "sectionProperties";
     typedef std::map<gtirb::UUID, std::tuple<uint64_t, uint64_t>> Type;
 };
 

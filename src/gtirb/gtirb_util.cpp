@@ -17,7 +17,7 @@ void register_gtirb_auxdata() {
     AuxDataContainer::registerAuxDataType<FunctionBlocks>();
     AuxDataContainer::registerAuxDataType<FunctionNames>();
     AuxDataContainer::registerAuxDataType<ElfSymbolInfo>();
-    AuxDataContainer::registerAuxDataType<ElfSectionProperties>();
+    AuxDataContainer::registerAuxDataType<SectionProperties>();
     AuxDataContainer::registerAuxDataType<Libraries>();
     initialized = true;
 }

@@ -282,10 +282,8 @@ ElfMap *GtirbDeserializer::buildElfMap(const gtirb::Module &module) {
 
     memcpy(bytes.data(), &header, sizeof(ElfXX_Ehdr));
 
-    auto sec_prop_map = module
-                            .getAuxData<gtirb::schema::ElfSectionProperties>();
-    assert(
-        sec_prop_map && "GTIRB file should have ElfSectionProperties AuxData!");
+    auto sec_prop_map = module.getAuxData<gtirb::schema::SectionProperties>();
+    assert(sec_prop_map && "GTIRB file should have SectionProperties AuxData!");
 
     // Assumes iteration order is the same as the iteration above.
 
@@ -798,22 +796,27 @@ bool GtirbDeserializer::isLoadableGtirbModule(const gtirb::Module &module) {
     // Do we have all the AuxData we need?
     if (!module.getAuxData<gtirb::schema::FunctionNames>()) {
         LOG(0, "GTIRB missing needed FunctionNames AuxData for Egalito import");
+        return false;
     }
     if (!module.getAuxData<gtirb::schema::FunctionEntries>()) {
         LOG(0,
             "GTIRB missing needed FunctionEntries AuxData for Egalito import");
+        return false;
     }
     if (!module.getAuxData<gtirb::schema::FunctionBlocks>()) {
         LOG(0,
             "GTIRB missing needed FunctionBlocks AuxData for Egalito import");
+        return false;
     }
     if (!module.getAuxData<gtirb::schema::ElfSymbolInfo>()) {
         LOG(0, "GTIRB missing needed ElfSymbolInfo AuxData for Egalito import");
+        return false;
     }
-    if (!module.getAuxData<gtirb::schema::ElfSectionProperties>()) {
+    if (!module.getAuxData<gtirb::schema::SectionProperties>()) {
         LOG(0,
-            "GTIRB missing needed ElfSectionProperties AuxData for Egalito "
+            "GTIRB missing needed SectionProperties AuxData for Egalito "
             "import");
+        return false;
     }
 
     return true;
