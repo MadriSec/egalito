@@ -19,5 +19,9 @@ void register_gtirb_auxdata() {
     AuxDataContainer::registerAuxDataType<ElfSymbolInfo>();
     AuxDataContainer::registerAuxDataType<SectionProperties>();
     AuxDataContainer::registerAuxDataType<Libraries>();
+    AuxDataContainer::registerAuxDataType<SymbolForwarding>();
+    AuxDataContainer::registerAuxDataType<LibraryPaths>();
+    AuxDataContainer::registerAuxDataType<BinaryType>();
+    AuxDataContainer::registerAuxDataType<Alignment>();
     initialized = true;
 }

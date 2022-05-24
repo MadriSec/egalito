@@ -34,6 +34,18 @@ struct Libraries {
     static constexpr const char* Name = "libraries";
     typedef std::vector<std::string> Type;
 };
+
+/// \brief Auxiliary data that includes names of necessary library paths.
+struct LibraryPaths {
+    static constexpr const char* Name = "libraryPaths";
+    typedef std::vector<std::string> Type;
+};
+
+/// \brief Auxiliary data describing a binary's type.
+struct BinaryType {
+    static constexpr const char* Name = "binaryType";
+    typedef std::vector<std::string> Type;
+};
 }
 }
 

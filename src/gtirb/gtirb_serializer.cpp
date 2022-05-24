@@ -2,6 +2,7 @@
 #include <fstream>
 
 #include "gtirb_serializer.h"
+#include "gtirb_util.h"
 
 #include "analysis/jumptable.h"
 #include "log/log.h"
@@ -32,43 +33,6 @@
 
 // Leverage definitions for the sanctioned AuxData tables.
 #include <gtirb/AuxDataSchema.hpp>
-using ElfSymbolInfo =
-    //         Size      Type         Binding      Visibility   Section index
-    std::tuple<uint64_t, std::string, std::string, std::string, uint64_t>;
-
-namespace gtirb {
-namespace schema {
-/// \brief Auxiliary data for extra symbol info.
-struct ElfSymbolInfoAD {
-    static constexpr const char *Name = "elfSymbolInfo";
-    typedef std::map<gtirb::UUID, ElfSymbolInfo> Type;
-};
-
-/// \brief Auxiliary data that includes names of necessary libraries.
-struct Libraries {
-    static constexpr const char *Name = "libraries";
-    typedef std::vector<std::string> Type;
-};
-
-/// \brief Auxiliary data that includes names of necessary library paths.
-struct LibraryPaths {
-    static constexpr const char *Name = "libraryPaths";
-    typedef std::vector<std::string> Type;
-};
-
-/// \brief Auxiliary data describing a binary's type.
-struct BinaryType {
-    static constexpr const char *Name = "binaryType";
-    typedef std::vector<std::string> Type;
-};
-
-/// \brief Auxiliary data covering ELF section properties.
-struct SectionProperties {
-    static constexpr const char *Name = "sectionProperties";
-    typedef std::map<gtirb::UUID, std::tuple<uint64_t, uint64_t>> Type;
-};
-}
-}
 
 std::string eSymTypeStr(Symbol::SymbolType eSymType) {
     switch (eSymType) {
@@ -295,8 +259,7 @@ public:
          */
         bool symbolInfoExists(gtirb::Symbol *gSymbol) {
             assert(module);
-            auto &auxInfo = *module
-                                 ->getAuxData<gtirb::schema::ElfSymbolInfoAD>();
+            auto &auxInfo = *module->getAuxData<gtirb::schema::ElfSymbolInfo>();
             return auxInfo.count(gSymbol->getUUID()) != 0;
         }
 
@@ -308,9 +271,8 @@ public:
             std::string type, std::string binding = "GLOBAL",
             std::string visibility = "DEFAULT", uint64_t section_idx = 0) {
             assert(module);
-            auto &auxInfo = *module
-                                 ->getAuxData<gtirb::schema::ElfSymbolInfoAD>();
-            auxInfo[gSymbol->getUUID()] = ElfSymbolInfo{
+            auto &auxInfo = *module->getAuxData<gtirb::schema::ElfSymbolInfo>();
+            auxInfo[gSymbol->getUUID()] = {
                 size, type, binding, visibility, section_idx};
         }
 
@@ -997,8 +959,8 @@ public:
             gtirb::schema::FunctionEntries::Type());
         gModule->addAuxData<gtirb::schema::FunctionBlocks>(
             gtirb::schema::FunctionBlocks::Type());
-        gModule->addAuxData<gtirb::schema::ElfSymbolInfoAD>(
-            gtirb::schema::ElfSymbolInfoAD::Type());
+        gModule->addAuxData<gtirb::schema::ElfSymbolInfo>(
+            gtirb::schema::ElfSymbolInfo::Type());
         gModule->addAuxData<gtirb::schema::SymbolForwarding>(
             gtirb::schema::SymbolForwarding::Type());
         gModule->addAuxData<gtirb::schema::Libraries>(
@@ -1696,22 +1658,7 @@ public:
  * @param filename The basename into which the output will be written
  */
 void GtirbSerializer::serialize(Program *program, std::string filename) {
-    gtirb::AuxDataContainer::registerAuxDataType<
-        gtirb::schema::FunctionEntries>();
-    gtirb::AuxDataContainer::registerAuxDataType<
-        gtirb::schema::FunctionBlocks>();
-    gtirb::AuxDataContainer::registerAuxDataType<
-        gtirb::schema::FunctionNames>();
-    gtirb::AuxDataContainer::registerAuxDataType<
-        gtirb::schema::ElfSymbolInfoAD>();
-    gtirb::AuxDataContainer::registerAuxDataType<
-        gtirb::schema::SymbolForwarding>();
-    gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::Libraries>();
-    gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::LibraryPaths>();
-    gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::BinaryType>();
-    gtirb::AuxDataContainer::registerAuxDataType<gtirb::schema::Alignment>();
-    gtirb::AuxDataContainer::registerAuxDataType<
-        gtirb::schema::SectionProperties>();
+    register_gtirb_auxdata();
     LOG(1, "GTIRB serialization");
 
     std::ofstream chunklog;
