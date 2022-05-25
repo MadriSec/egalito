@@ -56,6 +56,6 @@ reassemble() {
 # (so '-x' outputs doesn't look like it's warnings)
 exec 2> >(sed $'s|\(^[^\+].*\)|\e\[31m\\1\e[m|g' 2>&1 )
 set -x
-${DOGDB+gdb --args} "$APP_DIR/etgtirb" $BIN_OUTPUT/$LABEL $BIN_OUTPUT/egalito/$LABEL
+${DOGDB+gdb --args} "$APP_DIR/etgtirb" --deep $BIN_OUTPUT/$LABEL $BIN_OUTPUT/egalito/$LABEL
 
 reassemble $BIN_OUTPUT/egalito/$LABEL

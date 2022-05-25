@@ -39,8 +39,7 @@ std::string eSymTypeStr(Symbol::SymbolType eSymType) {
         case Symbol::TYPE_NOTYPE:
             return "NONE";
         case Symbol::TYPE_IFUNC:
-            // TODO: Is this correct, that "IFUNC" is "FUNC"?
-            return "FUNC";
+            return "GNU_IFUNC";
         case Symbol::TYPE_FUNC:
             return "FUNC";
         case Symbol::TYPE_OBJECT:
@@ -942,7 +941,9 @@ public:
     void visit(Program *eProgram) {
         eCtx.program = eProgram;
 
-        recurse<Module *>(eProgram);
+        // FIXME: We should be recursing into all program modules, not just the
+        // main one. However, that currently breaks the program.
+        visit(eProgram->getMain());
     }
 
     void visit(Module *eModule) {
@@ -1009,7 +1010,7 @@ public:
         // They just make grepping around the code a little easier, so I left
         // them in.
         if (eModule->getExternalSymbolList()) {
-            recurse<ExternalSymbol *>(eModule->getExternalSymbolList());
+            visit(eModule->getExternalSymbolList());
         }
         recurse<DataRegion *>(eModule->getDataRegionList());
         recurse<Function *>(eModule->getFunctionList());
@@ -1612,7 +1613,31 @@ public:
     void visit(DataRegionList *dataRegionList) { recurse(dataRegionList); };
     void visit(VTableList *vtableList) { recurse(vtableList); }
     void visit(ExternalSymbolList *externalSymbolList) {
-        recurse(externalSymbolList);
+        // Organize external symbols by library.
+        // This is required for pprinter to correctly assign external symbols
+        // when creating dummy so's.
+        std::map<std::string, std::vector<ExternalSymbol *>> extSymMap;
+        const std::string defaultLib = "__default__";
+        for (ExternalSymbol *extSym : CIter::children(externalSymbolList)) {
+            std::string libName = defaultLib;
+            if (auto resolvedLib = extSym->getResolvedModule()) {
+                libName = resolvedLib->getName();
+                // Remove "module-" prefix
+                libName.erase(0, 7);
+            }
+            extSymMap[libName].push_back(extSym);
+        }
+
+        for (auto *lib : CIter::children(eCtx.program->getLibraryList())) {
+            auto symbols = extSymMap[lib->getName()];
+            for (ExternalSymbol *extSym : symbols) {
+                visit(extSym);
+            }
+        }
+        // Add any symbols that were not assigned to a library
+        for (ExternalSymbol *extSym : extSymMap[defaultLib]) {
+            visit(extSym);
+        }
     }
     void visit(InitFunctionList *initFunctionList) {
         recurse(initFunctionList);
