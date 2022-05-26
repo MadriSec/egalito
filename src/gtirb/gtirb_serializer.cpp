@@ -1350,7 +1350,6 @@ public:
         //       reference elsewhere
         gtirb::Symbol *gTarget = get_canonical_symbol(
             std::nullopt, target->getName(), gCtx.module);
-        // Prefer adding symbols for local copies over weak instnces.
         // This information is used when generating dummy SO files.
         if (variable->getIsCopy() && !gCtx.symbolInfoExists(gSymbol)) {
             gCtx.addSymbolInfo(gSymbol, variable->getSize(),
