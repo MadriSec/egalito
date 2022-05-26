@@ -1350,14 +1350,17 @@ public:
         //       reference elsewhere
         gtirb::Symbol *gTarget = get_canonical_symbol(
             std::nullopt, target->getName(), gCtx.module);
+        // Prefer adding symbols for local copies over weak instnces.
         // This information is used when generating dummy SO files.
-        if (variable->getIsCopy() && !gCtx.symbolInfoExists(gSymbol)) {
-            gCtx.addSymbolInfo(gSymbol, variable->getSize(),
-                eSymTypeStr(target->getType()),
-                eSymBindingStr(target->getBind()), "DEFAULT",
-                target->getSectionIndex());
+        if (variable->getIsCopy()) {
+            if (!gCtx.symbolInfoExists(gSymbol)) {
+                gCtx.addSymbolInfo(gSymbol, variable->getSize(),
+                    eSymTypeStr(target->getType()),
+                    eSymBindingStr(target->getBind()), "DEFAULT",
+                    target->getSectionIndex());
+            }
         }
-        else if (!variable->getIsCopy() && !gCtx.symbolInfoExists(gTarget)) {
+        else if (!gCtx.symbolInfoExists(gTarget)) {
             gCtx.addSymbolInfo(gTarget, target->getSize(),
                 eSymTypeStr(target->getType()),
                 eSymBindingStr(target->getBind()), "DEFAULT",
