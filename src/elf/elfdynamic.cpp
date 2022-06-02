@@ -49,6 +49,10 @@ void ElfDynamic::parse(ElfMap *elf, Library *library) {
     resolveLibraries();
 }
 
+void ElfDynamic::setRPath(const std::string &newRPath) {
+    this->rpath = newRPath;
+}
+
 void ElfDynamic::addDependency(Library *library, std::string soname) {
     dependencyList.push_back(std::make_pair(soname, library));
     resolveLibraries();

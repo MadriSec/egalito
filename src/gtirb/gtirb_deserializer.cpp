@@ -19,6 +19,7 @@
 
 #include <capstone/capstone.h>
 #include <cstddef>
+#include <filesystem>
 #include <fstream>
 #include <boost/uuid/uuid_io.hpp>
 
@@ -835,6 +836,42 @@ void GtirbDeserializer::addLibDependences(
     // since that requires having populated the dynstrtab section in the ELF
     // map.
     ElfDynamic ed(lib_list);
+
+    // We need to tell ElfDynamic what rpath to use when resolving library
+    // names.
+    std::string rpath;
+    const std::vector<std::string>
+        *lib_paths = module.getAuxData<gtirb::schema::LibraryPaths>();
+    std::filesystem::path binpath = module.getBinaryPath();
+    std::filesystem::path bindir = binpath.parent_path();
+    bool using_cwd = false;
+    if (bindir == "") {
+        bindir = std::filesystem::current_path();
+        using_cwd = true;
+    }
+
+    for (auto p : *lib_paths) {
+        // Egalito expects $ORIGIN to be resolved.
+        if (rpath.size() > 0) {
+            rpath.push_back(':');
+        }
+
+        size_t pos = p.find("$ORIGIN");
+        if (pos != p.npos) {
+            std::string scratch = p;
+            scratch.replace(pos, strlen("$ORIGIN"), bindir);
+            if (using_cwd) {
+                LOG(1,
+                    "Note: no binary path information, using cwd for $ORIGIN "
+                    "in rpath");
+            }
+            rpath.append(scratch);
+        }
+        else {
+            rpath.append(p);
+        }
+    }
+    ed.setRPath(rpath);
 
     const std::vector<std::string>
         *gtirb_libs = module.getAuxData<gtirb::schema::Libraries>();

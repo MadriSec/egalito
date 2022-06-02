@@ -20,6 +20,7 @@ public:
         : libraryList(libraryList) {}
     void parse(ElfMap *elf, Library *library);
 
+    void setRPath(const std::string &newRPath);
     void addDependency(Library *library, std::string soname);
 
     std::string findSharedObject(std::string name);
