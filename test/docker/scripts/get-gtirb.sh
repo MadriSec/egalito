@@ -3,6 +3,7 @@
 # If able to be downloaded and installed from apt, it will do so
 # Otherwise, it installs from source by cloaning the gtirb repo.
 # Meant to be used as a part of the dockerfile building process
+set -ex
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -14,7 +15,7 @@ if [[ "$(lsb_release --short --id)" == "Ubuntu" ]]; then
 
     add-apt-repository ppa:mhier/libboost-latest
     apt-get update -y
-    apt-get install -y ddisasm gtirb-pprinter libgtirb-dev libgtirb-dbg
+    apt-get install -y libgtirb-dev libgtirb-dbg libgtirb-pprinter ddisasm gtirb-pprinter
     exit
 fi
 apt-get install -y software-properties-common

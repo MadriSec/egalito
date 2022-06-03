@@ -19,11 +19,7 @@ RUN apt-get update && \
   lsb-release \
   unzip
 
-FROM dependencies AS gtirb
-COPY scripts/get-gtirb.sh .
-RUN ./get-gtirb.sh
-
-FROM gtirb AS test
+FROM dependencies AS test
 
 RUN DEBIAN_FRONTEND=noninteractive \
     apt-get install -y python3-pip clang-format-6.0 lcov && \

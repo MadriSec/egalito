@@ -19,6 +19,10 @@ workflow:
       when: never
     - if: '$CI_COMMIT_BRANCH'
 
+default:
+  before_script:
+    - bash test/docker/scripts/get-gtirb.sh
+
 stages:
   - update-docker
   - check-format
@@ -37,6 +41,7 @@ stages:
 .docker-template:
   stage: update-docker
   image: docker
+  before_script: []
   services:
     - docker:dind
   script:
@@ -75,6 +80,7 @@ update-docker-debian:
 check-format:
   stage: check-format
   image: $UBUNTU18_IMAGE
+  before_script: []
   script:
     - pre-commit install-hooks
     - pre-commit run --all-files --show-diff-on-failure
@@ -168,7 +174,6 @@ build-debian:
   variables:
     GIT_STRATEGY: none
   stage: test
-  before_script: []
   script:
     - cd test/codegen && make test && cd -
 #    - cd test/unit && ./runner && cd -
@@ -257,6 +262,7 @@ sast:
 
 pages:
   image: $UBUNTU18_IMAGE
+  before_script: []
   only: [main]
   script:
     - apt update && apt install -y doxygen clang graphviz
