@@ -162,6 +162,12 @@ build-ubuntu20:
   extends: .build-template
   image: $UBUNTU20_IMAGE
 
+build-ubuntu20-unstable:
+  extends: .build-template
+  image: $UBUNTU20_IMAGE
+  before_script:
+    - bash test/docker/scripts/get-gtirb.sh unstable
+
 build-ubuntu18:
   extends: .build-template
   image: $UBUNTU18_IMAGE
@@ -183,6 +189,13 @@ tests-ubuntu18:
   extends: .test-template
   needs: [build-ubuntu18]
   image: $UBUNTU18_IMAGE
+
+tests-ubuntu20-unstable:
+  extends: .test-template
+  needs: [build-ubuntu20-unstable]
+  image: $UBUNTU20_IMAGE
+  before_script:
+    - bash test/docker/scripts/get-gtirb.sh unstable
 
 gtirb-test-ubuntu18:
   extends: .test-template
