@@ -20,7 +20,7 @@ workflow:
 
 default:
   before_script:
-    - bash test/docker/scripts/get-gtirb.sh
+    - bash test/script/get-gtirb.sh
 
 stages:
   - update-docker
@@ -230,7 +230,7 @@ sast:
   stage: sast
   needs: []
   variables:
-    SAST_EXCLUDED_PATHS: "dep/capstone, dep/keystone, dep/distorm3, dep/ifunc, test"
+    SAST_EXCLUDED_PATHS: "dep/keystone, dep/distorm3, dep/ifunc, test"
   before_script:
     # Convert github SSH submodules to HTTPS to circumvent the need for a GitHub SSH key
     - echo -e '[url "https://github.com/"]\n    insteadOf = "git@github.com:"' >> ~/.gitconfig

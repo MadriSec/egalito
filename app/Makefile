@@ -10,8 +10,7 @@ PYTHON_INC_DIR = /usr/include/python3.6m
 CFLAGS      += -g -I ../src/
 CXXFLAGS    += -g -I ../src/
 CLDFLAGS    += -L ../src/$(BUILDDIR) -legalito \
-	-Wl,-rpath=$(abspath ../src/$(BUILDDIR)) \
-	-Wl,-rpath=$(abspath ../dep/capstone/install/lib)
+	-Wl,-rpath=$(abspath ../src/$(BUILDDIR))
 
 ELF_SOURCES             = $(wildcard elf/*.cpp)
 SANDBOX_SOURCES         = $(wildcard sandbox/*.c sandbox/*.cpp)

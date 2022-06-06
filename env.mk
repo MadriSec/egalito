@@ -56,17 +56,6 @@ AR         = ar
 
 GENERIC_FLAGS   = -Wall -Wextra -Wno-unused-parameter -I.
 
-ifneq ($(CROSS),)
-ifneq ($(CAPSTONE_INC),)
-	GENERIC_FLAGS += -isystem $(CAPSTONE_INC)
-endif
-ifneq ($(CAPSTONE_LIB),)
-	CROSSLD = -L $(CAPSTONE_LIB)
-endif
-endif
-
-CAPSTONE_DIR = $(EGALITO_ROOT_DIR)/dep/capstone/install
-GENERIC_FLAGS += -isystem $(CAPSTONE_DIR)/include
 ifeq ($(USE_KEYSTONE),1)
 KEYSTONE_DIR = $(EGALITO_ROOT_DIR)/dep/keystone
 GENERIC_FLAGS += -I $(KEYSTONE_DIR)/include
@@ -81,8 +70,7 @@ CFLAGS          = -std=gnu99 -lstdc++fs $(GENERIC_FLAGS) $(OPT_FLAGS)
 CXXFLAGS        = -std=c++17 $(GENERIC_FLAGS) $(OPT_FLAGS)
 CLDFLAGS        = $(CROSSLD)
 
-CLDFLAGS		+= -L $(CAPSTONE_DIR)/lib -lcapstone -lstdc++fs \
-	-Wl,-rpath,$(abspath $(CAPSTONE_DIR)/lib)
+CLDFLAGS		+= -lcapstone -lstdc++fs
 
 ifdef USE_KEYSTONE  # set USE_KEYSTONE=1 to link with str->instr assembler
 	CLDFLAGS        += -L $(KEYSTONE_DIR)/build/llvm/lib -lkeystone \

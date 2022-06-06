@@ -16,7 +16,7 @@ if [[ "$(lsb_release --short --id)" == "Ubuntu" ]]; then
 
     add-apt-repository -y ppa:mhier/libboost-latest
     apt-get update -y
-    apt-get install -y libgtirb-dev libgtirb-dbg libgtirb-pprinter ddisasm gtirb-pprinter
+    apt-get install -y libgtirb-dev libgtirb-dbg libcapstone-dev-5.0.0-gt2 libgtirb-pprinter ddisasm gtirb-pprinter
     exit
 fi
 apt-get install -y software-properties-common
