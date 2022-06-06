@@ -63,12 +63,6 @@ update-docker-ubuntu-20:
     DOCKER_IMAGE_TAG: $UBUNTU20_IMAGE
     DOCKER_IMAGE_BASE: ubuntu:20.04
 
-update-docker-ubuntu-18:
-  extends: .docker-template
-  variables:
-    DOCKER_IMAGE_TAG: $UBUNTU18_IMAGE
-    DOCKER_IMAGE_BASE: ubuntu:18.04
-
 update-docker-debian:
   extends: .docker-template
   variables:
@@ -79,7 +73,7 @@ update-docker-debian:
 
 check-format:
   stage: check-format
-  image: $UBUNTU18_IMAGE
+  image: $UBUNTU20_IMAGE
   before_script: []
   script:
     - pre-commit install-hooks
@@ -110,7 +104,7 @@ coverage:
   artifacts:
     paths:
       - coverage/
-  image: $UBUNTU18_IMAGE
+  image: $UBUNTU20_IMAGE
   cache:
     key: "$CI_COMMIT_REF_SLUG-$CI_JOB_NAME"
     paths:
@@ -168,10 +162,6 @@ build-ubuntu20-unstable:
   before_script:
     - bash test/docker/scripts/get-gtirb.sh unstable
 
-build-ubuntu18:
-  extends: .build-template
-  image: $UBUNTU18_IMAGE
-
 build-debian:
   extends: .build-template
   image: $DEBIAN_IMAGE
@@ -185,10 +175,10 @@ build-debian:
 #    - cd test/unit && ./runner && cd -
 #    - cd test/script && make test && cd -
 
-tests-ubuntu18:
+tests-ubuntu20:
   extends: .test-template
-  needs: [build-ubuntu18]
-  image: $UBUNTU18_IMAGE
+  needs: [build-ubuntu20]
+  image: $UBUNTU20_IMAGE
 
 tests-ubuntu20-unstable:
   extends: .test-template
@@ -197,10 +187,10 @@ tests-ubuntu20-unstable:
   before_script:
     - bash test/docker/scripts/get-gtirb.sh unstable
 
-gtirb-test-ubuntu18:
+gtirb-test-ubuntu20:
   extends: .test-template
-  needs: [build-ubuntu18]
-  image: $UBUNTU18_IMAGE
+  needs: [build-ubuntu20]
+  image: $UBUNTU20_IMAGE
   stage: test
   script:
     - test/gtirb/run_test.sh
@@ -209,20 +199,6 @@ tests-debian:
   extends: .test-template
   needs: [build-debian]
   image: $DEBIAN_IMAGE
-
-package-ubuntu18:
-  image: $UBUNTU18_IMAGE
-  needs: [build-ubuntu18]
-  stage: package
-  artifacts:
-    paths:
-      - '*.deb'
-  script:
-    - apt update && apt install -y cmake
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static
 
 package-ubuntu20:
   image: $UBUNTU20_IMAGE
@@ -238,10 +214,10 @@ package-ubuntu20:
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static
 
-test-package-ubuntu18:
+test-package-ubuntu20:
   stage: test-package
-  image: $UBUNTU18_IMAGE
-  needs: [package-ubuntu18]
+  image: $UBUNTU20_IMAGE
+  needs: [package-ubuntu20]
   script:
     - for file in libegalito*.deb; do apt-get install -y ./${file}; done
     - for file in egalito*.deb; do apt-get install -y ./${file}; done
@@ -274,7 +250,7 @@ sast:
     expire_in: '1 day'
 
 pages:
-  image: $UBUNTU18_IMAGE
+  image: $UBUNTU20_IMAGE
   before_script: []
   only: [main]
   script:
