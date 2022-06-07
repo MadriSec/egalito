@@ -24,6 +24,7 @@ add-apt-repository ppa:mhier/libboost-latest
 apt-get install -y libprotobuf-dev protobuf-compiler libboost1.67-dev cmake git
 
 # Otherwise, install from source
+# Build & install GTIRB
 mkdir -p /tmp/gtirb-installation
 cd /tmp/gtirb-installation
 git clone --recursive https://github.com/GrammaTech/gtirb.git
@@ -34,3 +35,12 @@ cmake .. -DGTIRB_BUILD_SHARED_LIBS=OFF
 cmake --build . -- -j $(nproc)
 make install
 rm -r /tmp/gtirb-installation
+
+# Build & install Capstone
+mkdir -p /tmp/capstone-installation
+cd /tmp/capstone-installation
+git clone --recursive https://github.com/GrammaTech/capstone.git
+cd capstone
+CAPSTONE_ARCHS='x86 aarch64' ./make.sh
+CAPSTONE_ARCHS='x86 aarch64' ./make.sh install
+rm -r /tmp/capstone-installation
