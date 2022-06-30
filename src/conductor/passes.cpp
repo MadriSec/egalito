@@ -118,6 +118,17 @@ void ConductorPasses::newGtirbPasses(Program *program) {
         RUN_PASS(InferLinksPass(module->getElfSpace()->getElfMap()), module);
         RUN_PASS(InternalCalls(), module);
     }
+
+    Module *module = program->getMain();
+    ElfSpace *space = module->getElfSpace();
+    space->findSymbolsAndRelocs();
+    ElfMap *elf = space->getElfMap();
+    RelocList *relocList = space->getRelocList();
+    PLTList::parsePLTList(elf, relocList, module);
+    RUN_PASS(HandleRelocsStrong(elf, relocList), module);
+    if(module->getPLTList()) {
+        RUN_PASS(ExternalCalls(module->getPLTList()), module);
+    }
 }
 
 void ConductorPasses::newExecutablePasses(Program *program) {

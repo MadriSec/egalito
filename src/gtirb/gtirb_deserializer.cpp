@@ -330,7 +330,7 @@ ElfMap *GtirbDeserializer::buildElfMap(const gtirb::Module &module) {
         shdr.sh_link = 0;       // Don't care.
         shdr.sh_info = 0;       // Don't care.
         shdr.sh_addralign = 0;  // Don't care?
-        shdr.sh_entsize = 0;    // Don't care?
+        shdr.sh_entsize = sizeof(ElfXX_Rela);
 
         memcpy(bytes.data() + shdr_offset + curr_idx * shdr_entry_size, &shdr,
             sizeof(ElfXX_Shdr));
@@ -717,7 +717,7 @@ struct overload : Ts... {
     using Ts::operator()...;
 };
 template <class... Ts>
-overload(Ts...)->overload<Ts...>;
+overload(Ts...) -> overload<Ts...>;
 
 /**
  * @brief Build data-based links for a module.
@@ -1014,6 +1014,9 @@ Program *GtirbDeserializer::deserialize(Conductor *conductor) {
 
             functionList->getChildren()->add(func);
             func->setParent(functionList);
+            if (func->getName() == "_start") {
+                program->setEntryPoint(func);
+            }
             LOG(1, "adding function " << func->getName() << " at " << std::hex
                                       << func->getAddress() << " size "
                                       << func->getSize());
