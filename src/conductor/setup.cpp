@@ -159,6 +159,7 @@ void ConductorSetup::parseGtirb(GtirbDeserializer &gtirb_ds,
     }
 
     // TODO: Do we need the calls to resolveXYZ here?
+    conductor->resolveData(withSharedLibs);
 }
 
 void ConductorSetup::setBaseAddresses() {

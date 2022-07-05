@@ -117,17 +117,17 @@ void ConductorPasses::newGtirbPasses(Program *program) {
     for(auto module : CIter::children(program)) {
         RUN_PASS(InferLinksPass(module->getElfSpace()->getElfMap()), module);
         RUN_PASS(InternalCalls(), module);
-    }
 
-    Module *module = program->getMain();
-    ElfSpace *space = module->getElfSpace();
-    space->findSymbolsAndRelocs();
-    ElfMap *elf = space->getElfMap();
-    RelocList *relocList = space->getRelocList();
-    PLTList::parsePLTList(elf, relocList, module);
-    RUN_PASS(HandleRelocsStrong(elf, relocList), module);
-    if(module->getPLTList()) {
-        RUN_PASS(ExternalCalls(module->getPLTList()), module);
+        ElfSpace *space = module->getElfSpace();
+        space->findSymbolsAndRelocs();
+        space->setAliasMap(new FunctionAliasMap(module));
+
+        ElfMap *elf = space->getElfMap();
+        RelocList *relocList = space->getRelocList();
+        PLTList::parsePLTList(elf, relocList, module);
+        if(module->getPLTList()) {
+            RUN_PASS(ExternalCalls(module->getPLTList()), module);
+        }
     }
 }
 
