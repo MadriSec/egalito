@@ -717,7 +717,7 @@ struct overload : Ts... {
     using Ts::operator()...;
 };
 template <class... Ts>
-overload(Ts...) -> overload<Ts...>;
+overload(Ts...)->overload<Ts...>;
 
 /**
  * @brief Build data-based links for a module.

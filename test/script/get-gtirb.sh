@@ -11,7 +11,7 @@ GTIRB_RELEASE=${1:-"stable"}
 apt-get update -y
 if [[ "$(lsb_release --short --id)" == "Ubuntu" ]]; then
     # If we're on ubuntu, attempt to install from apt
-    apt-get install -y software-properties-common wget gnupg
+    apt update && apt-get install -y software-properties-common wget gnupg
     wget -O - https://download.grammatech.com/gtirb/files/apt-repo/conf/apt.gpg.key | apt-key add -
     echo "deb https://download.grammatech.com/gtirb/files/apt-repo $(lsb_release --codename --short) $GTIRB_RELEASE" | tee -a /etc/apt/sources.list
 
