@@ -8,6 +8,7 @@ set -ex
 export DEBIAN_FRONTEND=noninteractive
 GTIRB_RELEASE=${1:-"stable"}
 
+apt-get update -y
 if [[ "$(lsb_release --short --id)" == "Ubuntu" ]]; then
     # If we're on ubuntu, attempt to install from apt
     apt-get install -y software-properties-common wget gnupg
