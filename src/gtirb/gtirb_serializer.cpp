@@ -91,6 +91,10 @@ protected:
     /// \brief The IR into which the binary is serialized
     gtirb::IR &ir;
 
+    /// \brief A list of symbols that need to have their referrents set
+    /// after the ChunkSerializer performs its visit() pass.
+    std::vector<std::pair<gtirb::Symbol *, gtirb::Addr>> delayed_referrents;
+
     // For debugging:
     // chunk hierarchy logged to this file
     std::ostream *chunklog;
@@ -547,12 +551,9 @@ public:
          * @return gtirb::Symbol* A symbol with the name of the link's
          * destination (or nullptr)
          */
-        static gtirb::Symbol *symbol_from_name(
-            std::optional<std::string> sym_name,
+        static gtirb::Symbol *symbol_from_name(std::string sym_name,
             std::optional<address_t> sym_addr, gtirb::Module *module) {
-            if (!sym_name) return nullptr;
-
-            for (gtirb::Symbol &symbol : module->findSymbols(*sym_name)) {
+            for (gtirb::Symbol &symbol : module->findSymbols(sym_name)) {
                 if (sym_addr &&
                     (*symbol.getAddress() != gtirb::Addr(*sym_addr))) {
                     // TODO: Until/unless PLT trampolines are resolved,
@@ -577,11 +578,9 @@ public:
          * @return gtirb::Symbol *A symbol with the address of the link's
          * destination (or nullptr)
          */
-        static gtirb::Symbol *symbol_from_addr(
-            std::optional<address_t> sym_addr,
+        static gtirb::Symbol *symbol_from_addr(address_t sym_addr,
             std::optional<std::string> sym_name, gtirb::Module *module) {
-            if (!sym_addr) return nullptr;
-            gtirb::Addr gAddr(*sym_addr);
+            gtirb::Addr gAddr(sym_addr);
             for (gtirb::Symbol &symbol : module->findSymbols(gAddr)) {
                 if (sym_name and symbol.getName() != *sym_name) {
                     LOG(10, "Mismatched names in " << label(sym_addr, sym_name)
@@ -704,8 +703,10 @@ public:
         assert(gCtx.module);
 
         auto gSection = gCtx.section;
-        if (!gSection) {
-            auto eSection = eCtx.section;
+        if (!gSection || gtirb::Addr(ival_addr) < *gSection->getAddress() ||
+            gtirb::Addr(ival_addr) >=
+                (*gSection->getAddress() + *gSection->getSize())) {
+            DataSection *eSection = nullptr;
             if (!eSection) {
                 eSection = eCtx.module->getDataRegionList()
                                ->findDataSectionContaining(ival_addr);
@@ -750,8 +751,12 @@ public:
      */
     void set_symbol_ref(gtirb::Symbol *symbol, gtirb::Addr ref_address) {
         assert(gCtx.module);
+        bool dump = symbol->getName() == "environ";
+        if (dump) LOG(0, "*** in ssr for " << symbol->getName());
         auto interval = gCtx.byteInterval;
-        if (!interval) {
+        if (!interval || ref_address < *interval->getAddress() ||
+            ref_address >= (*interval->getAddress() + interval->getSize())) {
+            if (dump) LOG(0, "***   looking up gci at addr: " << ref_address);
             interval = get_canonical_interval((address_t)ref_address);
         }
         if (!interval) {
@@ -797,45 +802,60 @@ public:
             return nullptr;
         }
 
-        sym_name = get_gtirb_name(sym_name, sym_addr);
+        gtirb::Symbol *sym_out = nullptr;
 
-        // If there is a symbol with a matching name, use it even if the
-        // address is wrong
-        gtirb::Symbol *sym_out = LinkInfo::symbol_from_name(
-            sym_name, sym_addr, module);
+        // Do we have a name?
+        if (sym_name) {
+            sym_name = get_gtirb_name(sym_name, sym_addr);
 
-        // If there is no name, but there is an address, use the existing
-        // symbol if it matches
-        if (!sym_out) {
-            sym_out = LinkInfo::symbol_from_addr(sym_addr, sym_name, module);
-        }
-        else if (sym_out->getAddress() && sym_addr &&
-                 ((address_t)*sym_out->getAddress() != *sym_addr)) {
-            // If we found the symbol, but the address is mismatched,
-            // flag the duplicate name and disambiguate the symbols
-            duplicate_sym_names[*sym_name] = true;
+            // See if there is a symbol with a matching name
+            // (Even if that symbol is at the wrong address.)
+            sym_out = LinkInfo::symbol_from_name(*sym_name, sym_addr, module);
 
-            auto original_disambig = LinkInfo::disambigName(
-                *sym_name, (address_t)*sym_out->getAddress());
-            sym_out->setName(original_disambig);
-
-            sym_name = LinkInfo::disambigName(*sym_name, *sym_addr);
-            sym_out = nullptr;
-        }
-
-        // Otherwise, create the symbol if necessary
-        if (!sym_out) {
-            sym_out = LinkInfo::create_symbol(sym_addr, *sym_name, C, module);
-            if ((sym_out) && (sym_out->getAddress())) {
-                set_symbol_ref(sym_out, *sym_out->getAddress());
+            // If we didn't find a symbol, create one.
+            if (!sym_out) {
+                sym_out = LinkInfo::create_symbol(
+                    sym_addr, *sym_name, C, module);
+                if (sym_addr) {
+                    delayed_referrents.push_back(
+                        std::make_pair(sym_out, gtirb::Addr(*sym_addr)));
+                }
             }
-            else {
-                LOG(0, "NO ADDRESS ON CREATED SYBMOL");
+            else if (sym_out->getAddress() && sym_addr &&
+                     ((address_t)*sym_out->getAddress() != *sym_addr)) {
+                // If we found the symbol, but the address is mismatched,
+                // flag the duplicate name and disambiguate the symbols
+                duplicate_sym_names[*sym_name] = true;
+
+                auto original_disambig = LinkInfo::disambigName(
+                    *sym_name, (address_t)*sym_out->getAddress());
+                sym_out->setName(original_disambig);
+
+                sym_name = LinkInfo::disambigName(*sym_name, *sym_addr);
+                sym_out = LinkInfo::create_symbol(
+                    sym_addr, *sym_name, C, module);
+                if (sym_addr) {
+                    delayed_referrents.push_back(
+                        std::make_pair(sym_out, gtirb::Addr(*sym_addr)));
+                }
             }
         }
         else {
-            log_chunk("    synthetic: false");
+            assert(sym_addr);
+            // Don't have a name, see if we can find a symbol by address.
+            sym_out = LinkInfo::symbol_from_addr(
+                *sym_addr, std::nullopt, module);
+
+            // Don't have one? Create one.
+            if (!sym_out) {
+                std::string name = LinkInfo::symAddrName(*sym_addr);
+                sym_out = LinkInfo::create_symbol(sym_addr, name, C, module);
+                delayed_referrents.push_back(
+                    std::make_pair(sym_out, gtirb::Addr(*sym_addr)));
+            }
         }
+
+        assert(sym_out);
         return sym_out;
     }
 
@@ -944,6 +964,14 @@ public:
         // FIXME: We should be recursing into all program modules, not just the
         // main one. However, that currently breaks the program.
         visit(eProgram->getMain());
+
+        // After traversal, we have to go back and set referrents for
+        // symbols created. This is done here since durring the traversal
+        // a symbol could refer to an object that hasn't be constructed
+        // yet.
+        for (auto [sym, addr] : delayed_referrents) {
+            set_symbol_ref(sym, addr);
+        }
     }
 
     void visit(Module *eModule) {
@@ -1285,6 +1313,10 @@ public:
                 (sectionName.find(".got") != std::string::npos));
     }
 
+    inline bool is_weak_symbol(Symbol *sym) {
+        return sym->getBind() == Symbol::BindingType::BIND_WEAK;
+    }
+
     /**
      * Data variable description:
      * "Represents a variable within a global data section that points at
@@ -1351,6 +1383,11 @@ public:
         //       reference elsewhere
         gtirb::Symbol *gTarget = get_canonical_symbol(
             std::nullopt, target->getName(), gCtx.module);
+
+        if (is_weak_symbol(target)) {
+            delayed_referrents.push_back(
+                std::make_pair(gTarget, gtirb::Addr(target->getAddress())));
+        }
         // Prefer adding symbols for local copies over weak instnces.
         // This information is used when generating dummy SO files.
         if (variable->getIsCopy()) {
