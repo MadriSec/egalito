@@ -60,7 +60,7 @@ public:
 private:
     ElfMap *buildElfMap(const gtirb::Module &module);
     SymbolList *buildSymbolList(const gtirb::Module &module);
-    Function *buildFunction(gtirb::UUID sym_uuid,
+    Function *buildFunction(gtirb::Module &gtirb_module, gtirb::UUID sym_uuid,
         const std::set<gtirb::UUID> &entries,
         const std::set<gtirb::UUID> &blocks);
     InitFunctionList *buildInitFunctionList();

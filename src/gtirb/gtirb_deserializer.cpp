@@ -470,8 +470,9 @@ static Block *makeBlock(Function *function, Block *prev) {
  * function.
  * @return Function* The resulting function.
  */
-Function *GtirbDeserializer::buildFunction(gtirb::UUID sym_uuid,
-    const std::set<gtirb::UUID> &entries, const std::set<gtirb::UUID> &blocks) {
+Function *GtirbDeserializer::buildFunction(gtirb::Module &gtirb_module,
+    gtirb::UUID sym_uuid, const std::set<gtirb::UUID> &entries,
+    const std::set<gtirb::UUID> &blocks) {
     // Fetch the symbol
     const gtirb::Symbol *sym = dyn_cast<const gtirb::Symbol>(
         gtirb::Node::getByUUID(*this->C, sym_uuid));
@@ -487,6 +488,18 @@ Function *GtirbDeserializer::buildFunction(gtirb::UUID sym_uuid,
         return nullptr;
     }
     gtirb::Addr addr = *maybe_addr;
+    auto gtirb_sections = gtirb_module.findSectionsOn(addr);
+    // If we don't have a section, let's skip for now.
+    if (gtirb_sections.begin() == gtirb_sections.end()) {
+        LOG(1, "Function " << sym->getName() << " has no section. Skipping.");
+        return nullptr;
+    }
+    const gtirb::Section *gtirb_section = &(*gtirb_sections.begin());
+    // Do not add functions in PLT sections
+    if (gtirb_section->getName().find(".plt") != std::string::npos) {
+        LOG(1, "Function " << sym->getName() << " is in PLT. Skipping.");
+        return nullptr;
+    }
 
     Function *function = new Function();
     function->setName(sym->getName());
@@ -1007,7 +1020,8 @@ Program *GtirbDeserializer::deserialize(Conductor *conductor) {
             }
             const std::set<gtirb::UUID> entries = maybe_entries->second;
 
-            Function *func = buildFunction(sym_uuid, entries, blocks);
+            Function *func = buildFunction(
+                gtirb_module, sym_uuid, entries, blocks);
             if (!func) {
                 continue;
             }
