@@ -1653,6 +1653,7 @@ public:
         // Organize external symbols by library.
         // This is required for pprinter to correctly assign external symbols
         // when creating dummy so's.
+        // Warning: This may be a workaround for a deeper issue
         std::map<std::string, std::vector<ExternalSymbol *>> extSymMap;
         const std::string defaultLib = "__default__";
         for (ExternalSymbol *extSym : CIter::children(externalSymbolList)) {
