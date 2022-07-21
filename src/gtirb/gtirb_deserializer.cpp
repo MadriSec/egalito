@@ -603,7 +603,8 @@ void GtirbDeserializer::buildDataRegionList(ElfMap *elf_map, Module *module) {
     // normal process that scans the elf contents. It attaches
     // it directly to the module.
     // Question: do we need to do anything gtirb-specific here?
-    return DataRegionList::buildDataRegionList(elf_map, module);
+    DataRegionList::buildDataRegionList(elf_map, module);
+    module->getChildren()->add(module->getDataRegionList());
 }
 
 /**
