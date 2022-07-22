@@ -19,6 +19,7 @@
 
 #include <capstone/capstone.h>
 #include <cstddef>
+#include <elf.h>
 #include <filesystem>
 #include <fstream>
 #include <boost/uuid/uuid_io.hpp>
@@ -126,6 +127,36 @@ static size_t gtirb_isa_to_machine(gtirb::ISA isa) {
             return EM_NONE;
         }
     }
+}
+
+/**
+ * @brief get the binary type flag for the ELF header.
+ *
+ * @param module The GTIRB module.
+ * @return The ELF header binary type flag.
+ */
+static size_t getBinaryTypeFlag(const gtirb::Module &module) {
+    const std::vector<std::string>
+        *bin_types = module.getAuxData<gtirb::schema::BinaryType>();
+
+    size_t e_type = ET_NONE;
+    for (auto bin_type : *bin_types) {
+        if (bin_type == "DYN") {
+            e_type = ET_DYN;
+        }
+        else if (bin_type == "EXEC" && e_type < ET_EXEC) {
+            e_type = ET_EXEC;
+        }
+        // TODO - This test gives ET_EXEC precidence over ET_REL - is this correct?
+        else if (bin_type == "REL" && e_type < ET_REL) {
+            e_type = ET_EXEC;
+        }
+    }
+    if (e_type == ET_NONE){
+        assert((false) && "Failed to read binary type from GTIRB");
+        e_type = ET_EXEC;
+    }
+    return e_type;
 }
 
 /**
@@ -258,7 +289,7 @@ ElfMap *GtirbDeserializer::buildElfMap(const gtirb::Module &module) {
     header.e_ident[EI_VERSION] = EV_CURRENT;
     header.e_ident[EI_OSABI] = ELFOSABI_NONE;
     header.e_ident[EI_ABIVERSION] = 0;
-    header.e_type = ELFCLASSXX;
+    header.e_type = getBinaryTypeFlag(module);
     header.e_machine = gtirb_isa_to_machine(isa);
     header.e_version = EV_CURRENT;
 
