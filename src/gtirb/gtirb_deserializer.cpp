@@ -147,12 +147,12 @@ static size_t getBinaryTypeFlag(const gtirb::Module &module) {
         else if (bin_type == "EXEC" && e_type < ET_EXEC) {
             e_type = ET_EXEC;
         }
-        // TODO - This test gives ET_EXEC precidence over ET_REL - is this correct?
+        // TODO - do we want to give ET_EXEC precidence over ET_REL?
         else if (bin_type == "REL" && e_type < ET_REL) {
             e_type = ET_EXEC;
         }
     }
-    if (e_type == ET_NONE){
+    if (e_type == ET_NONE) {
         assert((false) && "Failed to read binary type from GTIRB");
         e_type = ET_EXEC;
     }
