@@ -57,7 +57,7 @@ static Symbol::SymbolType convertGtirbSymbolType(std::string gtirb_sym_type) {
 
     // There are other types not listed here, but ddisasm
     // doesn't seem to produce them.
-    // Specifically: TYPE_SECTION, TYPE_FILE
+    // Specifically: TYPE_SECTION
     static const std::unordered_map<std::string, Symbol::SymbolType>
         type_name_conversion = {
             {"FUNC", ST::TYPE_FUNC},
@@ -66,6 +66,7 @@ static Symbol::SymbolType convertGtirbSymbolType(std::string gtirb_sym_type) {
             {"NONE", ST::TYPE_NOTYPE},
             {"TLS", ST::TYPE_TLS},
             {"GNU_IFUNC", ST::TYPE_IFUNC},
+            {"FILE", ST::TYPE_FILE},
         };
     auto it = type_name_conversion.find(gtirb_sym_type);
     if (it == type_name_conversion.end()) {
@@ -331,6 +332,10 @@ ElfMap *GtirbDeserializer::buildElfMap(const gtirb::Module &module) {
         shdr.sh_info = 0;       // Don't care.
         shdr.sh_addralign = 0;  // Don't care?
         shdr.sh_entsize = sizeof(ElfXX_Rela);
+        // Need a way to set this to 2 for the version table
+        if (it->getName() == ".gnu.version") {
+            shdr.sh_entsize = sizeof(ElfXX_Versym);
+        }
 
         memcpy(bytes.data() + shdr_offset + curr_idx * shdr_entry_size, &shdr,
             sizeof(ElfXX_Shdr));
