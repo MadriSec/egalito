@@ -139,22 +139,29 @@ static size_t getBinaryTypeFlag(const gtirb::Module &module) {
     const std::vector<std::string>
         *bin_types = module.getAuxData<gtirb::schema::BinaryType>();
 
-    size_t e_type = ET_NONE;
-    for (auto bin_type : *bin_types) {
+    if (bin_types->size() != 1) {
+        LOG(1, "WARNING: Found "
+                   << bin_types->size()
+                   << " ELF binary type flags - should be exactly one!");
+        assert(false && "Should be exactly 1 ELF binary type flag");
+    }
+
+    size_t e_type = ET_EXEC;
+    if (bin_types->size() > 0) {
+        std::string bin_type = bin_types->front();
         if (bin_type == "DYN") {
             e_type = ET_DYN;
         }
-        else if (bin_type == "EXEC" && e_type < ET_EXEC) {
+        else if (bin_type == "EXEC") {
             e_type = ET_EXEC;
         }
-        // TODO - do we want to give ET_EXEC precidence over ET_REL?
-        else if (bin_type == "REL" && e_type < ET_REL) {
+        else if (bin_type == "REL") {
             e_type = ET_EXEC;
         }
-    }
-    if (e_type == ET_NONE) {
-        assert((false) && "Failed to read binary type from GTIRB");
-        e_type = ET_EXEC;
+        else {
+            LOG(1, "WARNING: unrecognized GTIRB binary type: " << bin_type);
+            assert(false && "Unrecoginzed GTIRB binary type");
+        }
     }
     return e_type;
 }
@@ -767,7 +774,7 @@ struct overload : Ts... {
     using Ts::operator()...;
 };
 template <class... Ts>
-overload(Ts...)->overload<Ts...>;
+overload(Ts...) -> overload<Ts...>;
 
 /**
  * @brief Build data-based links for a module.
