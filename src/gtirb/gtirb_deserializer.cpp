@@ -588,19 +588,8 @@ Function *GtirbDeserializer::buildFunction(gtirb::Module &gtirb_module,
         for (size_t i = 0; i < count; ++i) {
             auto instr = DisassembleInstruction(*this->cs_handle, true)
                              .instruction(&insn[i]);
-
-            Chunk *prevChunk = nullptr;
-            if (curr_block->getChildren()->getIterable()->getCount() > 0) {
-                prevChunk = curr_block->getChildren()->getIterable()->getLast();
-            }
-            else if (function->getChildren()->getIterable()->getCount() > 0) {
-                prevChunk = function->getChildren()->getIterable()->getLast();
-            }
-            else {
-                prevChunk = nullptr;
-            }
-            instr->setPosition(positionFactory->makePosition(
-                prevChunk, instr, curr_block->getSize()));
+            instr->setPosition(positionFactory->makeAbsolutePosition(
+                addr + curr_block->getSize()));
             ChunkMutator(curr_block, false).append(instr);
         }
 
