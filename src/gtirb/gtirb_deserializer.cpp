@@ -964,7 +964,7 @@ Program *GtirbDeserializer::deserialize(Conductor *conductor) {
     }
 
     // Create a Library for the module
-    Library::Role role = Library::ROLE_MAIN;
+    Library::Role role = Library::guessRole(this->filename);
     auto library = new Library(
         Library::determineInternalName(gtirb_module.getName(), role), role);
     library->setResolvedPath(gtirb_module.getBinaryPath());
