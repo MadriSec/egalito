@@ -474,35 +474,6 @@ SymbolList *GtirbDeserializer::buildSymbolList(const gtirb::Module &module) {
 }
 
 /**
- * @brief Attach a new block to the given Function.
- *
- * @param function The function to attach the block to.
- * @param prev The previous block attached to the same function. (Would be
- * the return value of a previous invocation of this function.) May be null.
- *
- * @return Block* The added block.
- *
- * @note This function is copied from <egalito>/src/disasm/disassemble.cpp.
- * It's not clear how easy it would be to refactor to avoid the copy, given it's
- * a protected member function of the DisassembleFunctionBase. Possibly the
- * thing to do would be to make a local derived class of DisassembleFunctionBase
- * that gives us access to this?
- */
-static Block *makeBlock(Function *function, Block *prev) {
-    PositionFactory *positionFactory = PositionFactory::getInstance();
-
-    if (prev == nullptr) {
-        if (function->getChildren()->getIterable()->getCount() > 0) {
-            prev = function->getChildren()->getIterable()->getLast();
-        }
-    }
-    Block *block = new Block();
-    block->setPosition(
-        positionFactory->makePosition(prev, block, function->getSize()));
-    return block;
-}
-
-/**
  * @brief Build an Egalito function for the given GTIRB notion of function.
  *
  * @param sym_uuid The UUID of the symbol designated as carrying the function's
@@ -574,11 +545,11 @@ Function *GtirbDeserializer::buildFunction(gtirb::Module &gtirb_module,
     std::sort(sorted_blocks.begin(), sorted_blocks.end(),
         [](auto lhs, auto rhs) { return lhs.first < rhs.first; });
 
-    Block *prev = nullptr;
     PositionFactory *positionFactory = PositionFactory::getInstance();
 
     for (auto [addr, gtirb_block] : sorted_blocks) {
-        Block *curr_block = makeBlock(function, prev);
+        Block *curr_block = new Block();
+        curr_block->setPosition(positionFactory->makeAbsolutePosition(addr));
 
         cs_insn *insn;
         size_t count = cs_disasm(this->cs_handle->raw(),
