@@ -567,7 +567,6 @@ Function *GtirbDeserializer::buildFunction(gtirb::Module &gtirb_module,
         cs_free(insn, count);
 
         ChunkMutator(function, false).append(curr_block);
-        prev = curr_block;
     }
 
     return function;
