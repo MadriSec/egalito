@@ -149,8 +149,6 @@ coverage:
     # (Makes gitlab's cache usable)
     - *RESET_TIMESTAMPS
     - make -j $(nproc)
-  rules:
-    - when: always
 
 build-ubuntu20:
   extends: .build-template
