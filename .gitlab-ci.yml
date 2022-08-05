@@ -74,6 +74,7 @@ check-format:
   stage: check-format
   image: $UBUNTU20_IMAGE
   before_script: []
+  needs: []
   script:
     - pre-commit install-hooks
     - pre-commit run --all-files --show-diff-on-failure
