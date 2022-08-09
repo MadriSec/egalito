@@ -206,10 +206,12 @@ package-ubuntu20:
       - '*.deb'
   script:
     - apt update && apt install -y cmake
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static
+    - 'CPACK_GTIRB_VERSION=$(info="$(apt-cache policy libgtirb | grep Installed)"; echo "${info##*: }")'
+    - echo $CPACK_GTIRB_VERSION
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib -D CPACK_GTIRB_VERSION=$CPACK_GTIRB_VERSION
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin -D CPACK_GTIRB_VERSION=$CPACK_GTIRB_VERSION
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev -D CPACK_GTIRB_VERSION=$CPACK_GTIRB_VERSION
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static 
 
 test-package-ubuntu20:
   stage: test-package
