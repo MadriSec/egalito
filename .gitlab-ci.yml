@@ -197,21 +197,28 @@ tests-debian:
   needs: [build-debian]
   image: $DEBIAN_IMAGE
 
-package-ubuntu20:
+.package-ubuntu20-template:
   image: $UBUNTU20_IMAGE
-  needs: [build-ubuntu20]
   stage: package
   artifacts:
     paths:
       - '*.deb'
   script:
     - apt update && apt install -y cmake
-    - 'CPACK_GTIRB_VERSION=$(info="$(apt-cache policy libgtirb | grep Installed)"; echo "${info##*: }")'
-    - echo $CPACK_GTIRB_VERSION
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib -D CPACK_GTIRB_VERSION=$CPACK_GTIRB_VERSION
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin -D CPACK_GTIRB_VERSION=$CPACK_GTIRB_VERSION
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev -D CPACK_GTIRB_VERSION=$CPACK_GTIRB_VERSION
+    - 'echo $(info="$(apt-cache policy libgtirb | grep Installed)"; echo "${info##*: }")>CPACK_GTIRB_VERSION.txt'
+    - cat CPACK_GTIRB_VERSION.txt
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib -D CPACK_GTIRB_VERSION=$(cat CPACK_GTIRB_VERSION.txt)
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin -D CPACK_GTIRB_VERSION=$(cat CPACK_GTIRB_VERSION.txt)
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev -D CPACK_GTIRB_VERSION=$(cat CPACK_GTIRB_VERSION.txt)
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static 
+
+package-ubuntu20:
+  extends: .package-ubuntu20-template
+  needs: [build-ubuntu20]
+
+package-ubuntu20-unstable:
+  extends: .package-ubuntu20-template
+  needs: [build-ubuntu20-unstable]
 
 test-package-ubuntu20:
   stage: test-package
