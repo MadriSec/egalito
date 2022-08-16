@@ -13,7 +13,7 @@ if(CPACK_EGALITO_PACKAGE STREQUAL  "lib")
     )
   set(CPACK_PACKAGE_NAME "libegalito")
   set(CPACK_DEBIAN_PACKAGE_DEPENDS 
-    "libc6, libcapstone-dev, libgtirb (=${CPACK_GTIRB_VERSION})")
+    "libc6, libcapstone-dev, libgtirb-${CPACK_GTIRB_VERSION}")
   #rpm: todo
 elseif(CPACK_EGALITO_PACKAGE STREQUAL "dev")
   set(CPACK_INSTALLED_DIRECTORIES 
@@ -22,7 +22,7 @@ elseif(CPACK_EGALITO_PACKAGE STREQUAL "dev")
     )
   set(CPACK_PACKAGE_NAME "libegalito-dev")
   #TODO: GET CAPSTONE VERSION PROGRAMATICALLY
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "libegalito (=${CPACK_PACKAGE_VERSION}), libgtirb-dev (=${CPACK_GTIRB_VERSION)") 
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "libegalito (=${CPACK_PACKAGE_VERSION}), libgtirb-dev-${CPACK_GTIRB_VERSION}") 
 elseif(CPACK_EGALITO_PACKAGE STREQUAL "bin") 
   set(CPACK_INSTALLED_DIRECTORIES ${EGALITO_BINARY_DIR} "usr/bin")
   set(CPACK_PACKAGE_NAME "egalito")

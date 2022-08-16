@@ -19,7 +19,7 @@ workflow:
 
 default:
   before_script:
-    - bash test/script/get-gtirb.sh
+    - bash test/script/get-gtirb.sh stable
 
 stages:
   - update-docker
@@ -205,11 +205,9 @@ tests-debian:
       - '*.deb'
   script:
     - apt update && apt install -y cmake
-    - 'echo $(info="$(apt-cache policy libgtirb-dev | grep Installed)"; echo "${info##*: }")>CPACK_GTIRB_VERSION.txt'
-    - cat CPACK_GTIRB_VERSION.txt
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib -D CPACK_GTIRB_VERSION=$(cat CPACK_GTIRB_VERSION.txt)
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin -D CPACK_GTIRB_VERSION=$(cat CPACK_GTIRB_VERSION.txt)
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev -D CPACK_GTIRB_VERSION=$(cat CPACK_GTIRB_VERSION.txt)
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh)
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh)
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh)
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static 
 
 package-ubuntu20:
