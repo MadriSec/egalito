@@ -10,6 +10,7 @@ variables:
     # AARCH64_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/aarch64
     # ARM_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/egalito/arm
     DOCKER_DIR: ./test/docker
+    GTIRB_RELEASE: stable
 
 workflow:
   rules:
@@ -19,7 +20,7 @@ workflow:
 
 default:
   before_script:
-    - bash test/script/get-gtirb.sh stable
+    - bash test/script/get-gtirb.sh $GTIRB_RELEASE
 
 stages:
   - update-docker
@@ -181,8 +182,8 @@ tests-ubuntu20-unstable:
   extends: .test-template
   needs: [build-ubuntu20-unstable]
   image: $UBUNTU20_IMAGE
-  before_script:
-    - bash test/script/get-gtirb.sh unstable
+  variables:
+    GTIRB_RELEASE: unstable
 
 gtirb-test-ubuntu20:
   extends: .test-template
@@ -205,9 +206,9 @@ tests-debian:
       - '*.deb'
   script:
     - apt update && apt install -y cmake
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh)
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh)
-    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh)
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh) -D CPACK_GTIRB_RELEASE=$GTIRB_RELEASE
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh) -D CPACK_GTIRB_RELEASE=$GTIRB_RELEASE
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh) -D CPACK_GTIRB_RELEASE=$GTIRB_RELEASE
     - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static 
 
 package-ubuntu20:
@@ -217,9 +218,9 @@ package-ubuntu20:
 package-ubuntu20-unstable:
   extends: .package-ubuntu20-template
   needs: [build-ubuntu20-unstable]
-  before_script:
-    - bash test/script/get-gtirb.sh unstable
-
+  variables:
+    GTIRB_RELEASE: unstable
+  
 .test-package-template:
   stage: test-package
   image: $UBUNTU20_IMAGE
@@ -239,8 +240,8 @@ test-package-ubuntu20:
 test-package-ubuntu20-unstable:
   extends: .test-package-template
   needs: [package-ubuntu20-unstable]
-  before_script:
-    - bash test/script/get-gtirb.sh unstable
+  variables:
+    GTIRB_RELEASE: unstable
   
 sast:
   stage: sast
