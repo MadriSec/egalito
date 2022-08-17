@@ -201,7 +201,7 @@ tests-debian:
   image: $UBUNTU20_IMAGE
   stage: package
   artifacts:
-    paths:
+    paths:    
       - '*.deb'
   script:
     - apt update && apt install -y cmake
@@ -217,6 +217,8 @@ package-ubuntu20:
 package-ubuntu20-unstable:
   extends: .package-ubuntu20-template
   needs: [build-ubuntu20-unstable]
+  before_script:
+    - bash test/script/get-gtirb.sh unstable
 
 test-package-ubuntu20:
   stage: test-package
