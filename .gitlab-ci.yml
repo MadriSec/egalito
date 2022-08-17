@@ -220,10 +220,9 @@ package-ubuntu20-unstable:
   before_script:
     - bash test/script/get-gtirb.sh unstable
 
-test-package-ubuntu20:
+.test-package-template:
   stage: test-package
   image: $UBUNTU20_IMAGE
-  needs: [package-ubuntu20]
   script:
     - for file in libegalito*.deb; do apt-get install -y ./${file}; done
     - for file in egalito*.deb; do apt-get install -y ./${file}; done
@@ -233,6 +232,16 @@ test-package-ubuntu20:
     - etelf -m test/example/hellocpp hello
     - ./hello
 
+test-package-ubuntu20:
+  extends: .test-package-template
+  needs: [package-ubuntu20]
+
+test-package-ubuntu20-unstable:
+  extends: .test-package-template
+  needs: [package-ubuntu20-unstable]
+  before_script:
+    - bash test/script/get-gtirb.sh unstable
+  
 sast:
   stage: sast
   needs: []
