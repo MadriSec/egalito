@@ -115,8 +115,8 @@ void ConductorPasses::newArchivePasses(Program *program) {
 void ConductorPasses::newGtirbPasses(Program *program) {
     // TODO: What needs to be done here?
     for(auto module : CIter::children(program)) {
-        RUN_PASS(InferLinksPass(module->getElfSpace()->getElfMap()), module);
         RUN_PASS(InternalCalls(), module);
+        RUN_PASS(InferLinksPass(module->getElfSpace()->getElfMap()), module);
 
         ElfSpace *space = module->getElfSpace();
         space->findSymbolsAndRelocs();
