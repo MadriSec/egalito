@@ -651,6 +651,84 @@ public:
     /// \brief Record of duplicate symbol names in need of disambiguation.
     std::map<std::string, bool> duplicate_sym_names;
 
+    struct EdgeInfo {
+        gtirb::Addr source;
+        gtirb::Addr dest;
+        gtirb::EdgeType type;
+        gtirb::ConditionalEdge conditional;
+        gtirb::DirectEdge direct;
+
+        EdgeInfo(gtirb::Addr source, gtirb::Addr dest, gtirb::EdgeType type,
+            gtirb::ConditionalEdge conditional, gtirb::DirectEdge direct)
+            : source(source),
+              dest(dest),
+              type(type),
+              conditional(conditional),
+              direct(direct) {}
+
+        static EdgeInfo from_instruction(Instruction *instruction) {
+            auto semantic = instruction->getSemantic();
+            auto link = semantic->getLink();
+            auto assembly = semantic->getAssembly();
+            auto type = gtirb::EdgeType::Fallthrough;
+            // TODO: How do we determine conditional value in egalito?
+            auto conditional = gtirb::ConditionalEdge::OnFalse;
+            auto direct = gtirb::DirectEdge::IsDirect;
+
+            if (dynamic_cast<ReturnInstruction *>(semantic)) {
+                type = gtirb::EdgeType::Return;
+                conditional = gtirb::ConditionalEdge::OnFalse;
+                direct = gtirb::DirectEdge::IsDirect;
+            }
+            else if (dynamic_cast<IndirectCallInstruction *>(semantic)) {
+                type = gtirb::EdgeType::Call;
+                conditional = gtirb::ConditionalEdge::OnFalse;
+                direct = gtirb::DirectEdge::IsIndirect;
+            }
+            else if (dynamic_cast<IndirectJumpInstruction *>(semantic)) {
+                type = gtirb::EdgeType::Branch;
+                conditional = gtirb::ConditionalEdge::OnFalse;
+                direct = gtirb::DirectEdge::IsIndirect;
+            }
+            else if (auto assembly = semantic->getAssembly()) {
+                if (assembly->getId() == X86_INS_CALL) {
+                    type = gtirb::EdgeType::Call;
+                    conditional = gtirb::ConditionalEdge::OnFalse;
+                    direct = gtirb::DirectEdge::IsDirect;
+                }
+                else if (assembly->getId() == X86_INS_JMP) {
+                    type = gtirb::EdgeType::Branch;
+                    conditional = gtirb::ConditionalEdge::OnFalse;
+                    direct = gtirb::DirectEdge::IsDirect;
+                }
+                else if (assembly->getId() == X86_INS_SYSCALL) {
+                    type = gtirb::EdgeType::Syscall;
+                    conditional = gtirb::ConditionalEdge::OnFalse;
+                    direct = gtirb::DirectEdge::IsDirect;
+                }
+                else if ((assembly->getId() == X86_INS_SYSRET) ||
+                         (assembly->getId() == X86_INS_SYSRETQ)) {
+                    type = gtirb::EdgeType::Sysret;
+                    conditional = gtirb::ConditionalEdge::OnFalse;
+                    direct = gtirb::DirectEdge::IsDirect;
+                }
+            }
+            else if (auto *cfi = dynamic_cast<ControlFlowInstructionBase *>(
+                         semantic)) {
+                if (cfi->getMnemonic() != "callq") {
+                    type = gtirb::EdgeType::Call;
+                    conditional = gtirb::ConditionalEdge::OnFalse;
+                    direct = gtirb::DirectEdge::IsDirect;
+                }
+            }
+            return EdgeInfo(gtirb::Addr(instruction->getAddress()),
+                gtirb::Addr(link->getTargetAddress()), type, conditional,
+                direct);
+        }
+    };
+    std::vector<EdgeInfo> edges;
+    bool is_fallthrough_function = true;
+
     /**
      * @brief Check if a symbol name is using Egalito's internal jump
      * syntax.
@@ -1083,6 +1161,19 @@ public:
                                                      << " at " << offset);
         }
 
+        // Add callgraph edges
+        auto &gtirb_cfg = gModule->getIR()->getCFG();
+        for (auto info : edges) {
+            const gtirb::CodeBlock
+                *src = &*gModule->findCodeBlocksOn(info.source).begin();
+            const gtirb::CodeBlock
+                *dest = &*gModule->findCodeBlocksOn(info.dest).begin();
+
+            auto E = addEdge(src, dest, gtirb_cfg);
+            gtirb_cfg[*E] = std::make_tuple(
+                info.conditional, info.direct, info.type);
+        }
+
         // Add data blocks for regions that aren't covered by existing ones
 
         // Keep a pointer to the current location in each byte interval,
@@ -1496,7 +1587,24 @@ public:
         gCtx.addSymbolInfo(
             gSymbol, symSize, eSymTypeStr(symType), eSymBindingStr(symBind));
 
+        is_fallthrough_function = true;
         recurse<Block *>(function);
+        if (is_fallthrough_function) {
+            auto block = function->getChildren()->getIterable()->getLast();
+            auto instr = block->getChildren()->getIterable()->getLast();
+            auto targetAddress = instr->getAddress() + instr->getSize();
+            auto list = dynamic_cast<FunctionList *>(function->getParent());
+            auto target = CIter::spatial(list)->find(targetAddress);
+
+            if (target != nullptr) {
+                auto edge = EdgeInfo(gtirb::Addr(instr->getAddress()),
+                    gtirb::Addr(target->getAddress()),
+                    gtirb::EdgeType::Fallthrough,
+                    gtirb::ConditionalEdge::OnFalse,
+                    gtirb::DirectEdge::IsDirect);
+                edges.push_back(edge);
+            }
+        }
     }
 
     void visit(Block *block) {
@@ -1593,6 +1701,12 @@ public:
                 op_offset = cfi->getOpcode().size();
                 log_chunk("  Link Type: CFI");
                 log_chunk("  Mnemonic: ", cfi->getMnemonic());
+
+                is_fallthrough_function = false;
+                auto edge = EdgeInfo::from_instruction(instruction);
+                if (edge.type != gtirb::EdgeType::Fallthrough) {
+                    edges.push_back(EdgeInfo::from_instruction(instruction));
+                }
             }
             else if (auto *li = dynamic_cast<LinkedInstructionBase *>(
                          semantic)) {
