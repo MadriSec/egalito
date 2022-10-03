@@ -1665,17 +1665,11 @@ public:
             auto block = function->getChildren()->getIterable()->getLast();
             auto instr = block->getChildren()->getIterable()->getLast();
             auto targetAddress = instr->getAddress() + instr->getSize();
-            auto list = dynamic_cast<FunctionList *>(function->getParent());
-            auto target = CIter::spatial(list)->find(targetAddress);
 
-            if (target != nullptr) {
-                auto edge = EdgeInfo(gtirb::Addr(instr->getAddress()),
-                    gtirb::Addr(target->getAddress()),
-                    gtirb::EdgeType::Fallthrough,
-                    gtirb::ConditionalEdge::OnFalse,
-                    gtirb::DirectEdge::IsDirect);
-                edges.push_back(edge);
-            }
+            auto edge = EdgeInfo(gtirb::Addr(instr->getAddress()),
+                gtirb::Addr(targetAddress), gtirb::EdgeType::Fallthrough,
+                gtirb::ConditionalEdge::OnFalse, gtirb::DirectEdge::IsDirect);
+            edges.push_back(edge);
         }
     }
 
