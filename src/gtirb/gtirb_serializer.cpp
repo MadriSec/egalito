@@ -666,64 +666,67 @@ public:
               conditional(conditional),
               direct(direct) {}
 
-        static EdgeInfo from_instruction(Instruction *instruction) {
+        static std::optional<EdgeInfo> from_instruction(
+            Instruction *instruction) {
+            auto source = gtirb::Addr(instruction->getAddress());
+            // XXX: Not sure if there is a better default for this
+            auto dest = gtirb::Addr(instruction->getAddress());
             auto semantic = instruction->getSemantic();
-            auto link = semantic->getLink();
-            auto assembly = semantic->getAssembly();
-            auto type = gtirb::EdgeType::Fallthrough;
-            // TODO: How do we determine conditional value in egalito?
-            auto conditional = gtirb::ConditionalEdge::OnFalse;
-            auto direct = gtirb::DirectEdge::IsDirect;
+            if ((!semantic) || (!semantic->isControlFlow())) {
+                return std::nullopt;
+            }
 
-            if (dynamic_cast<ReturnInstruction *>(semantic)) {
-                type = gtirb::EdgeType::Return;
-                conditional = gtirb::ConditionalEdge::OnFalse;
-                direct = gtirb::DirectEdge::IsDirect;
+            // TODO: How do we determine conditional values in egalito?
+            // TODO: Check for syscall and sysret edges
+            std::optional<EdgeInfo> output = std::nullopt;
+            if (auto *link = semantic->getLink()) {
+                dest = gtirb::Addr(link->getTargetAddress());
+                if (auto *cfi = dynamic_cast<ControlFlowInstructionBase *>(
+                        semantic)) {
+                    // XXX: We assume that these are all direct, which may be
+                    // wrong
+                    if (cfi->getMnemonic() == "callq") {
+                        output = EdgeInfo(source, dest, gtirb::EdgeType::Call,
+                            gtirb::ConditionalEdge::OnFalse,
+                            gtirb::DirectEdge::IsDirect);
+                    }
+                    else if (cfi->getMnemonic() == "je") {
+                        output = EdgeInfo(source, dest, gtirb::EdgeType::Branch,
+                            gtirb::ConditionalEdge::OnTrue,
+                            gtirb::DirectEdge::IsDirect);
+                    }
+                    else if (cfi->getMnemonic() == "jne") {
+                        output = EdgeInfo(source, dest, gtirb::EdgeType::Branch,
+                            gtirb::ConditionalEdge::OnFalse,
+                            gtirb::DirectEdge::IsDirect);
+                    }
+                }
             }
             else if (dynamic_cast<IndirectCallInstruction *>(semantic)) {
-                type = gtirb::EdgeType::Call;
-                conditional = gtirb::ConditionalEdge::OnFalse;
-                direct = gtirb::DirectEdge::IsIndirect;
+                // TODO: Find a the destination address if possible
+                output = EdgeInfo(source, dest, gtirb::EdgeType::Call,
+                    gtirb::ConditionalEdge::OnFalse,
+                    gtirb::DirectEdge::IsIndirect);
             }
-            else if (dynamic_cast<IndirectJumpInstruction *>(semantic)) {
-                type = gtirb::EdgeType::Branch;
-                conditional = gtirb::ConditionalEdge::OnFalse;
-                direct = gtirb::DirectEdge::IsIndirect;
-            }
-            else if (auto assembly = semantic->getAssembly()) {
-                if (assembly->getId() == X86_INS_CALL) {
-                    type = gtirb::EdgeType::Call;
-                    conditional = gtirb::ConditionalEdge::OnFalse;
-                    direct = gtirb::DirectEdge::IsDirect;
-                }
-                else if (assembly->getId() == X86_INS_JMP) {
-                    type = gtirb::EdgeType::Branch;
-                    conditional = gtirb::ConditionalEdge::OnFalse;
-                    direct = gtirb::DirectEdge::IsDirect;
-                }
-                else if (assembly->getId() == X86_INS_SYSCALL) {
-                    type = gtirb::EdgeType::Syscall;
-                    conditional = gtirb::ConditionalEdge::OnFalse;
-                    direct = gtirb::DirectEdge::IsDirect;
-                }
-                else if ((assembly->getId() == X86_INS_SYSRET) ||
-                         (assembly->getId() == X86_INS_SYSRETQ)) {
-                    type = gtirb::EdgeType::Sysret;
-                    conditional = gtirb::ConditionalEdge::OnFalse;
-                    direct = gtirb::DirectEdge::IsDirect;
-                }
-            }
-            else if (auto *cfi = dynamic_cast<ControlFlowInstructionBase *>(
+            else if (auto *ijmp = dynamic_cast<IndirectJumpInstruction *>(
                          semantic)) {
-                if (cfi->getMnemonic() != "callq") {
-                    type = gtirb::EdgeType::Call;
-                    conditional = gtirb::ConditionalEdge::OnFalse;
-                    direct = gtirb::DirectEdge::IsDirect;
+                // XXX: Not sure if this is the best way to set this addr
+                if (ijmp->isForJumpTable()) {
+                    dest = gtirb::Addr(ijmp->getJumpTables()[0]->getAddress());
                 }
+                output = EdgeInfo(source, dest, gtirb::EdgeType::Branch,
+                    gtirb::ConditionalEdge::OnFalse,
+                    gtirb::DirectEdge::IsIndirect);
             }
-            return EdgeInfo(gtirb::Addr(instruction->getAddress()),
-                gtirb::Addr(link->getTargetAddress()), type, conditional,
-                direct);
+            else if (dynamic_cast<ReturnInstruction *>(semantic)) {
+                // XXX: Not sure if this is the best way to set this addr
+                dest = gtirb::Addr(
+                    instruction->getParent()->getParent()->getAddress());
+                output = EdgeInfo(source, dest, gtirb::EdgeType::Return,
+                    gtirb::ConditionalEdge::OnFalse,
+                    gtirb::DirectEdge::IsDirect);
+            }
+            return output;
         }
     };
     std::vector<EdgeInfo> edges;
@@ -1166,10 +1169,12 @@ public:
         for (auto info : edges) {
             const gtirb::CodeBlock
                 *src = &*gModule->findCodeBlocksOn(info.source).begin();
-            const gtirb::CodeBlock
-                *dest = &*gModule->findCodeBlocksOn(info.dest).begin();
+            auto dest_blocks = gModule->findCodeBlocksOn(info.dest);
+            if (dest_blocks.begin() == dest_blocks.end()) {
+                continue;
+            }
 
-            auto E = addEdge(src, dest, gtirb_cfg);
+            auto E = addEdge(src, &*dest_blocks.begin(), gtirb_cfg);
             gtirb_cfg[*E] = std::make_tuple(
                 info.conditional, info.direct, info.type);
         }
@@ -1693,6 +1698,13 @@ public:
         log_chunk("  Instruction offset: ", instrOffset);
         std::copy(data.begin(), data.end(), instrPos);
 
+        auto edge = EdgeInfo::from_instruction(instruction);
+        if (edge) {
+            log_chunk("  Edge: ", edge->type);
+            is_fallthrough_function = false;
+            edges.push_back(*edge);
+        }
+
         auto link = semantic->getLink();
         if (link) {
             int op_offset = 0;
@@ -1701,12 +1713,6 @@ public:
                 op_offset = cfi->getOpcode().size();
                 log_chunk("  Link Type: CFI");
                 log_chunk("  Mnemonic: ", cfi->getMnemonic());
-
-                is_fallthrough_function = false;
-                auto edge = EdgeInfo::from_instruction(instruction);
-                if (edge.type != gtirb::EdgeType::Fallthrough) {
-                    edges.push_back(EdgeInfo::from_instruction(instruction));
-                }
             }
             else if (auto *li = dynamic_cast<LinkedInstructionBase *>(
                          semantic)) {
