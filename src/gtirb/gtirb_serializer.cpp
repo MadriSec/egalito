@@ -711,6 +711,7 @@ public:
                         gtirb::ConditionalEdge::OnFalse,
                         gtirb::DirectEdge::IsDirect);
                 default:
+                    LOG(0, "WARNING: Unknown asm edge at " << source);
                     return std::nullopt;
             }
         }
@@ -744,6 +745,9 @@ public:
                 output = EdgeInfo(source, dest, gtirb::EdgeType::Branch,
                     gtirb::ConditionalEdge::OnFalse,
                     gtirb::DirectEdge::IsDirect);
+            }
+            else {
+                LOG(0, "WARNING: Unknown cfi edge at " << source);
             }
             return output;
         }
@@ -783,6 +787,9 @@ public:
             else if (auto *cfi = dynamic_cast<ControlFlowInstructionBase *>(
                          semantic)) {
                 output = from_control_flow(cfi, source, dest);
+            }
+            else {
+                LOG(0, "WARNING: Unknown edge at " << source);
             }
             return output;
         }
