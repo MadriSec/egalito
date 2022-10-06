@@ -1385,6 +1385,13 @@ public:
         if (eCtx.region->executable()) {
             gSection->addFlag(gtirb::SectionFlag::Executable);
         }
+        auto tls_ld_flag = gtirb::SectionFlag::Loaded;
+        if (auto *tls = eCtx.module->getDataRegionList()->getTLS()) {
+            if (tls->containsData(eSection->getAddress())) {
+                tls_ld_flag = gtirb::SectionFlag::ThreadLocal;
+            }
+        }
+        gSection->addFlag(tls_ld_flag);
 
         gCtx.section = gSection;
         eCtx.section = eSection;
