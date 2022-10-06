@@ -669,17 +669,18 @@ public:
 
         static std::optional<EdgeInfo> from_assembly(AssemblyPtr assembly,
             gtirb::Addr source, std::optional<gtirb::Addr> dest) {
-            // XXX: We assume that these are all direct
+            auto direct = (dest == std::nullopt) ? gtirb::DirectEdge::IsIndirect
+                                                 : gtirb::DirectEdge::IsDirect;
+
             switch (assembly->getId()) {
                 case X86_INS_CALL:
                     return EdgeInfo(source, dest, gtirb::EdgeType::Call,
-                        gtirb::ConditionalEdge::OnFalse,
-                        gtirb::DirectEdge::IsDirect);
+                        gtirb::ConditionalEdge::OnFalse, direct);
                 case X86_INS_SYSCALL:
                     return EdgeInfo(source, dest, gtirb::EdgeType::Syscall,
-                        gtirb::ConditionalEdge::OnFalse,
-                        gtirb::DirectEdge::IsDirect);
+                        gtirb::ConditionalEdge::OnFalse, direct);
                 case X86_INS_SYSRET:
+                    // Marking this as direct to reflect return edge behavior
                     return EdgeInfo(source, dest, gtirb::EdgeType::Sysret,
                         gtirb::ConditionalEdge::OnFalse,
                         gtirb::DirectEdge::IsDirect);
@@ -699,8 +700,7 @@ public:
                 case X86_INS_JECXZ:
                 case X86_INS_JRCXZ:
                     return EdgeInfo(source, dest, gtirb::EdgeType::Branch,
-                        gtirb::ConditionalEdge::OnTrue,
-                        gtirb::DirectEdge::IsDirect);
+                        gtirb::ConditionalEdge::OnTrue, direct);
                 case X86_INS_JMP:
                 case X86_INS_LJMP:
                 case X86_INS_JNE:
@@ -708,8 +708,7 @@ public:
                 case X86_INS_JNP:
                 case X86_INS_JNS:
                     return EdgeInfo(source, dest, gtirb::EdgeType::Branch,
-                        gtirb::ConditionalEdge::OnFalse,
-                        gtirb::DirectEdge::IsDirect);
+                        gtirb::ConditionalEdge::OnFalse, direct);
                 default:
                     LOG(0, "WARNING: Unknown asm edge at " << source);
                     return std::nullopt;
@@ -719,13 +718,14 @@ public:
         static std::optional<EdgeInfo> from_control_flow(
             ControlFlowInstructionBase *instruction, gtirb::Addr source,
             std::optional<gtirb::Addr> dest) {
-            // XXX: We assume that these are all direct
             auto mnemonic = instruction->getMnemonic();
             std::optional<EdgeInfo> output = std::nullopt;
+            auto direct = (dest == std::nullopt) ? gtirb::DirectEdge::IsIndirect
+                                                 : gtirb::DirectEdge::IsDirect;
+
             if (mnemonic == "callq") {
                 output = EdgeInfo(source, dest, gtirb::EdgeType::Call,
-                    gtirb::ConditionalEdge::OnFalse,
-                    gtirb::DirectEdge::IsDirect);
+                    gtirb::ConditionalEdge::OnFalse, direct);
             }
             else if ((mnemonic == "jo") || (mnemonic == "js") ||
                      (mnemonic == "je") || (mnemonic == "jb") ||
@@ -736,15 +736,13 @@ public:
                      (mnemonic == "jcxz") || (mnemonic == "jecxz") ||
                      (mnemonic == "jrcxz")) {
                 output = EdgeInfo(source, dest, gtirb::EdgeType::Branch,
-                    gtirb::ConditionalEdge::OnTrue,
-                    gtirb::DirectEdge::IsDirect);
+                    gtirb::ConditionalEdge::OnTrue, direct);
             }
             else if ((mnemonic == "jmp") || (mnemonic == "ljmp") ||
                      (mnemonic == "jne") || (mnemonic == "jno") ||
                      (mnemonic == "jnp") || (mnemonic == "jns")) {
                 output = EdgeInfo(source, dest, gtirb::EdgeType::Branch,
-                    gtirb::ConditionalEdge::OnFalse,
-                    gtirb::DirectEdge::IsDirect);
+                    gtirb::ConditionalEdge::OnFalse, direct);
             }
             else {
                 LOG(0, "WARNING: Unknown cfi edge at " << source);
