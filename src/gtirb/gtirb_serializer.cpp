@@ -1108,14 +1108,6 @@ public:
         // FIXME: We should be recursing into all program modules, not just the
         // main one. However, that currently breaks the program.
         visit(eProgram->getMain());
-
-        // After traversal, we have to go back and set referrents for
-        // symbols created. This is done here since durring the traversal
-        // a symbol could refer to an object that hasn't be constructed
-        // yet.
-        for (auto [sym, addr] : delayed_referrents) {
-            set_symbol_ref(sym, addr);
-        }
     }
 
     void visit(Module *eModule) {
@@ -1249,6 +1241,14 @@ public:
             auto E = addEdge(src, dest, gtirb_cfg);
             gtirb_cfg[*E] = std::make_tuple(
                 info.conditional, info.direct, info.type);
+        }
+
+        // After traversal, we have to go back and set referrents for
+        // symbols created. This is done here since during the traversal
+        // a symbol could refer to an object that hasn't be constructed
+        // yet.
+        for (auto [sym, addr] : delayed_referrents) {
+            set_symbol_ref(sym, addr);
         }
 
         // Add data blocks for regions that aren't covered by existing ones
