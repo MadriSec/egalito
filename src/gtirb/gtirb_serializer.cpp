@@ -1246,7 +1246,7 @@ public:
             auto blocks = gCtx.module->findBlocksAt(ref_address);
             if (blocks.begin() == blocks.end()) {
                 log_chunk("- Referent Block: ", ref_address);
-                block_addrs.insert({address_t(ref_address), 0});
+                registerDataBlock(address_t(ref_address), 0);
             }
         }
 
