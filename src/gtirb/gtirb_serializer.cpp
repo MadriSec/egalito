@@ -886,40 +886,30 @@ public:
     /**
      * @brief Set the referent for a GTIRB symbol.
      *
-     * @note This function will add a block for the referent if one does not
-     * already exist, but it will not attempt to create a byte interval for the
-     * symbol.
+     * @note This function assumes a block already exists for the GTIRB symbol
+     * referent if it is on an existing byte interval.
      *
      * @param symbol Symbol to add the referent to.
      * @param ref_address Address of the referent.
      */
     void set_symbol_ref(gtirb::Symbol *symbol, gtirb::Addr ref_address) {
-        assert(gCtx.module);
         bool dump = symbol->getName() == "environ";
-        if (dump) LOG(0, "*** in ssr for " << symbol->getName());
-        auto interval = gCtx.byteInterval;
-        if (!interval || ref_address < *interval->getAddress() ||
-            ref_address >= (*interval->getAddress() + interval->getSize())) {
-            if (dump) LOG(0, "***   looking up gci at addr: " << ref_address);
-            interval = get_canonical_interval((address_t)ref_address);
+        if (dump) {
+            LOG(0, "*** in ssr for " << symbol->getName());
+            LOG(0, "***   looking up gci at addr: " << ref_address);
         }
+
+        auto interval = get_canonical_interval((address_t)ref_address);
         if (!interval) {
             LOG(0, "WARNING: No interval for ref at 0x" << std::hex
                                                         << ref_address);
-            // Make sure a block is added at this address
-            block_addrs.insert({address_t(ref_address), 0});
             return;
         }
 
         gtirb::Node *block = nullptr;
         auto blocks = interval->findBlocksAt(ref_address);
-        if (blocks.begin() == blocks.end()) {
-            block_addrs.insert({address_t(ref_address), 0});
-            block = try_adding_data_block(interval, (address_t)ref_address, 0);
-        }
-        else {
-            block = &*blocks.begin();
-        }
+        assert(blocks.begin() != blocks.end());
+        block = &*blocks.begin();
 
         if (gtirb::CodeBlock *codeBlock = dyn_cast_or_null<gtirb::CodeBlock>(
                 block)) {
@@ -1108,6 +1098,14 @@ public:
         // FIXME: We should be recursing into all program modules, not just the
         // main one. However, that currently breaks the program.
         visit(eProgram->getMain());
+
+        // After traversal, we have to go back and set referrents for
+        // symbols created. This is done here since during the traversal
+        // a symbol could refer to an object that hasn't be constructed
+        // yet.
+        for (auto [sym, addr] : delayed_referrents) {
+            set_symbol_ref(sym, addr);
+        }
     }
 
     void visit(Module *eModule) {
@@ -1243,12 +1241,13 @@ public:
                 info.conditional, info.direct, info.type);
         }
 
-        // After traversal, we have to go back and set referrents for
-        // symbols created. This is done here since during the traversal
-        // a symbol could refer to an object that hasn't be constructed
-        // yet.
-        for (auto [sym, addr] : delayed_referrents) {
-            set_symbol_ref(sym, addr);
+        // Make sure we add blocks required by symbol referents
+        for (auto [sym, ref_address] : delayed_referrents) {
+            auto blocks = gCtx.module->findBlocksAt(ref_address);
+            if (blocks.begin() == blocks.end()) {
+                log_chunk("- Referent Block: ", ref_address);
+                block_addrs.insert({address_t(ref_address), 0});
+            }
         }
 
         // Add data blocks for regions that aren't covered by existing ones
