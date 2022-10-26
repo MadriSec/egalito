@@ -229,14 +229,26 @@ public:
          *
          * @param codeBlock A code block to be associated with the currently set
          * functionId
+         * @param previousBlock The code block directly preceding codeBlock, if
+         * adding out-of-order
          */
-        void addBlockToFunction(gtirb::CodeBlock *codeBlock) {
+        void addBlockToFunction(gtirb::CodeBlock *codeBlock,
+            gtirb::CodeBlock *previousBlock = nullptr) {
             assert(module);
             assert(functionId);
-            // Blocks must be added in order
+            // Blocks must be added in order, unless a previousBlock is provided
             auto &funcBlocks =
                 *module->getAuxData<gtirb::schema::FunctionBlocks>();
-            funcBlocks[*functionId].emplace(codeBlock->getUUID());
+
+            auto insert_iter = funcBlocks[*functionId].end();
+            if (previousBlock) {
+                auto previous_iter = funcBlocks[*functionId].find(
+                    previousBlock->getUUID());
+                if (previous_iter != insert_iter) {
+                    insert_iter = std::next(previous_iter);
+                }
+            }
+            funcBlocks[*functionId].insert(insert_iter, codeBlock->getUUID());
             auto &funcEntry =
                 *module->getAuxData<gtirb::schema::FunctionEntries>();
             if (funcEntry[*functionId].empty()) {
@@ -794,6 +806,8 @@ public:
     };
     std::vector<EdgeInfo> edges;
     bool is_fallthrough_function = true;
+    /// \brief Map functions to their GTIRB ID's
+    std::map<Function *, gtirb::UUID> function_to_uuid;
 
     /**
      * @brief Check if a symbol name is using Egalito's internal jump
@@ -1092,6 +1106,82 @@ public:
         // Section spillover should already be handled by byte interval sizing.
     }
 
+    /**
+     * @brief Split an existing code block at a specified address
+     *
+     * @param interval Byte interval the original block exists on
+     * @param block CodeBlock to split
+     * @param addr Program-relative address where block should be split
+     */
+    void split_code_block_on(gtirb::ByteInterval *interval,
+        gtirb::CodeBlock *block, address_t addr) {
+        auto original_size = block->getSize();
+        auto original_addr = address_t(*block->getAddress());
+        auto original_resize = addr - original_addr;
+        block->setSize(original_resize);
+
+        auto new_size = original_size - original_resize;
+        uint64_t new_offset = addr - (uint64_t)*interval->getAddress();
+        gtirb::CodeBlock *new_block = interval->addBlock<gtirb::CodeBlock>(
+            C, new_offset, new_size);
+
+        // Add the new block to a function
+        auto function = eCtx.module->getFunctionList()
+                            ->getChildren()
+                            ->getSpatial()
+                            ->findContaining(addr);
+        if (function != nullptr) {
+            gCtx.functionId = function_to_uuid[function];
+            gCtx.addBlockToFunction(new_block, block);
+        }
+    }
+
+    /**
+     * @brief Split an existing data block at a specified address
+     *
+     * @param interval Byte interval the original block exists on
+     * @param block DataBlock to split
+     * @param addr Program-relative address where block should be split
+     */
+    void split_data_block_on(gtirb::ByteInterval *interval,
+        gtirb::DataBlock *block, address_t addr) {
+        auto original_size = block->getSize();
+        auto original_addr = address_t(*block->getAddress());
+        auto original_resize = addr - original_addr;
+        block->setSize(original_resize);
+
+        auto new_size = original_size - original_resize;
+        try_adding_data_block(interval, addr, new_size);
+    }
+
+    /**
+     * @brief Split an existing block at a specified address
+     *
+     * @note If no blocks are found at the specified address, a 0-sized data
+     * block will be created at the address
+     *
+     * @param interval Byte interval the original block exists on
+     * @param addr Program-relative address where block should be split
+     */
+    void split_block_on(gtirb::ByteInterval *interval, address_t addr) {
+        auto blocks = interval->findBlocksOn(gtirb::Addr(addr));
+        if (blocks.begin() == blocks.end()) {
+            LOG(0, "WARNING: No blocks to split at " << std::hex << addr);
+            try_adding_data_block(interval, addr, 0);
+            return;
+        }
+        log_chunk("- Split: ", addr);
+        auto block = &*blocks.begin();
+        if (gtirb::CodeBlock *codeBlock = dyn_cast_or_null<gtirb::CodeBlock>(
+                block)) {
+            split_code_block_on(interval, codeBlock, addr);
+        }
+        else if (gtirb::DataBlock
+                     *dataBlock = dyn_cast_or_null<gtirb::DataBlock>(block)) {
+            split_data_block_on(interval, dataBlock, addr);
+        }
+    }
+
     void visit(Program *eProgram) {
         eCtx.program = eProgram;
 
@@ -1106,23 +1196,6 @@ public:
         for (auto [sym, addr] : delayed_referrents) {
             set_symbol_ref(sym, addr);
         }
-    }
-
-    void split_data_block_on(gtirb::ByteInterval *interval, address_t addr) {
-        auto blocks = interval->findDataBlocksOn(gtirb::Addr(addr));
-        if (blocks.begin() == blocks.end()) {
-            LOG(0, "WARNING: No data block to split at " << std::hex << addr);
-            return;
-        }
-        log_chunk("- Split: ", addr);
-        auto block = &*blocks.begin();
-        auto original_size = block->getSize();
-        auto original_addr = address_t(*block->getAddress());
-        auto original_resize = addr - original_addr;
-        block->setSize(original_resize);
-
-        auto new_size = original_size - original_resize;
-        try_adding_data_block(interval, addr, new_size);
     }
 
     void visit(Module *eModule) {
@@ -1304,7 +1377,7 @@ public:
                 // that means that the new block falls in the middle of
                 // a previously created one.
                 // Handle this by splitting the existing block
-                split_data_block_on(interval, blockAddr);
+                split_block_on(interval, blockAddr);
                 cursor = std::max(cursor, gtirb::Addr(blockAddr + blockSize));
             }
         }
@@ -1683,6 +1756,7 @@ public:
         gtirb::Symbol *gSymbol = get_canonical_symbol(
             addr, symName, gCtx.module);
         gCtx.functionId = gCtx.assignFunctionId(gSymbol);
+        function_to_uuid[function] = *gCtx.functionId;
         gCtx.addSymbolInfo(
             gSymbol, symSize, eSymTypeStr(symType), eSymBindingStr(symBind));
 
