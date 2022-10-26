@@ -1115,6 +1115,10 @@ public:
      */
     void split_code_block_on(gtirb::ByteInterval *interval,
         gtirb::CodeBlock *block, address_t addr) {
+        if (block->getAddress() == gtirb::Addr(addr)) {
+            // Nothing to split
+            return;
+        }
         auto original_size = block->getSize();
         auto original_addr = address_t(*block->getAddress());
         auto original_resize = addr - original_addr;
@@ -1134,6 +1138,13 @@ public:
             gCtx.functionId = function_to_uuid[function];
             gCtx.addBlockToFunction(new_block, block);
         }
+
+        log_chunk("- Split (Code): ", original_addr, " -> ",
+            original_addr + original_size);
+        log_chunk("    First: ", block->getAddress(), " -> ",
+            (address_t)(*block->getAddress()) + block->getSize());
+        log_chunk("    Second: ", new_block->getAddress(), " -> ",
+            (address_t)(*new_block->getAddress()) + new_block->getSize());
     }
 
     /**
@@ -1145,13 +1156,24 @@ public:
      */
     void split_data_block_on(gtirb::ByteInterval *interval,
         gtirb::DataBlock *block, address_t addr) {
+        if (block->getAddress() == gtirb::Addr(addr)) {
+            // Nothing to split
+            return;
+        }
         auto original_size = block->getSize();
         auto original_addr = address_t(*block->getAddress());
         auto original_resize = addr - original_addr;
         block->setSize(original_resize);
 
         auto new_size = original_size - original_resize;
-        try_adding_data_block(interval, addr, new_size);
+        auto new_block = try_adding_data_block(interval, addr, new_size);
+
+        log_chunk("- Split (Data): ", original_addr, " -> ",
+            original_addr + original_size);
+        log_chunk("    First: ", block->getAddress(), " -> ",
+            (address_t)(*block->getAddress()) + block->getSize());
+        log_chunk("    Second: ", new_block->getAddress(), " -> ",
+            (address_t)(*new_block->getAddress()) + new_block->getSize());
     }
 
     /**
@@ -1170,7 +1192,6 @@ public:
             try_adding_data_block(interval, addr, 0);
             return;
         }
-        log_chunk("- Split: ", addr);
         auto block = &*blocks.begin();
         if (gtirb::CodeBlock *codeBlock = dyn_cast_or_null<gtirb::CodeBlock>(
                 block)) {
