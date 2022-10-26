@@ -1108,6 +1108,23 @@ public:
         }
     }
 
+    void split_data_block_on(gtirb::ByteInterval *interval, address_t addr) {
+        auto blocks = interval->findDataBlocksOn(gtirb::Addr(addr));
+        if (blocks.begin() == blocks.end()) {
+            LOG(0, "WARNING: No data block to split at " << std::hex << addr);
+            return;
+        }
+        log_chunk("- Split: ", addr);
+        auto block = &*blocks.begin();
+        auto original_size = block->getSize();
+        auto original_addr = address_t(*block->getAddress());
+        auto original_resize = addr - original_addr;
+        block->setSize(original_resize);
+
+        auto new_size = original_size - original_resize;
+        try_adding_data_block(interval, addr, new_size);
+    }
+
     void visit(Module *eModule) {
         log_chunk("- Chunk: !module ", eModule->getName());
 
@@ -1286,9 +1303,8 @@ public:
                 // If blockAddr is behind the cursor addr,
                 // that means that the new block falls in the middle of
                 // a previously created one.
-                // Right now we just skip over the overlap to the next block.
-                // TODO: Creating overlap or splitting the existing block might
-                // be better.
+                // Handle this by splitting the existing block
+                split_data_block_on(interval, blockAddr);
                 cursor = std::max(cursor, gtirb::Addr(blockAddr + blockSize));
             }
         }
