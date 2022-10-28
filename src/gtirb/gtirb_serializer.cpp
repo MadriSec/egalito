@@ -805,8 +805,8 @@ public:
     };
     std::vector<EdgeInfo> edges;
     bool is_fallthrough_function = true;
-    /// \brief Map GTIRB symbol UUID's to their function UUID's
-    std::map<gtirb::UUID, gtirb::UUID> symbol_to_function;
+    /// \brief Map GTIRB block UUID's to their function UUID's
+    std::map<gtirb::UUID, gtirb::UUID> block_to_function;
 
     /**
      * @brief Check if a symbol name is using Egalito's internal jump
@@ -1114,12 +1114,12 @@ public:
      */
     void split_code_block_on(gtirb::ByteInterval *interval,
         gtirb::CodeBlock *block, address_t addr) {
-        if (block->getAddress() == gtirb::Addr(addr)) {
+        auto original_addr = address_t(*block->getAddress());
+        if (original_addr == addr) {
             // Nothing to split
             return;
         }
         auto original_size = block->getSize();
-        auto original_addr = address_t(*block->getAddress());
         auto original_resize = addr - original_addr;
         block->setSize(original_resize);
 
@@ -1129,15 +1129,9 @@ public:
             C, new_offset, new_size);
 
         // Add the new block to a function
-        auto function = eCtx.module->getFunctionList()
-                            ->getChildren()
-                            ->getSpatial()
-                            ->findContaining(addr);
-        assert(function);
-        gtirb::Symbol *gSymbol = get_canonical_symbol(
-            function->getAddress(), function->getName(), gCtx.module);
-        gCtx.functionId = symbol_to_function[gSymbol->getUUID()];
+        gCtx.functionId = block_to_function[block->getUUID()];
         gCtx.addBlockToFunction(new_block, block);
+        block_to_function[new_block->getUUID()] = *gCtx.functionId;
 
         log_chunk("- Split (Code): ", original_addr, " -> ",
             original_addr + original_size);
@@ -1783,7 +1777,6 @@ public:
             return;
         }
         gCtx.functionId = gCtx.assignFunctionId(gSymbol);
-        symbol_to_function[gSymbol->getUUID()] = *gCtx.functionId;
         gCtx.addSymbolInfo(
             gSymbol, symSize, eSymTypeStr(symType), eSymBindingStr(symBind));
 
@@ -1826,6 +1819,7 @@ public:
                                           ->addBlock<gtirb::CodeBlock>(
                                               C, blockOffset, block->getSize());
         block_addrs[block->getAddress()] = block->getSize();
+        block_to_function[codeBlock->getUUID()] = *gCtx.functionId;
 
         gCtx.addBlockToFunction(codeBlock);
 
