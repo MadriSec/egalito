@@ -805,8 +805,8 @@ public:
     };
     std::vector<EdgeInfo> edges;
     bool is_fallthrough_function = true;
-    /// \brief Map functions to their GTIRB ID's
-    std::map<Function *, gtirb::UUID> function_to_uuid;
+    /// \brief Map GTIRB symbol UUID's to their function UUID's
+    std::map<gtirb::UUID, gtirb::UUID> symbol_to_function;
 
     /**
      * @brief Check if a symbol name is using Egalito's internal jump
@@ -1133,10 +1133,11 @@ public:
                             ->getChildren()
                             ->getSpatial()
                             ->findContaining(addr);
-        if (function != nullptr) {
-            gCtx.functionId = function_to_uuid[function];
-            gCtx.addBlockToFunction(new_block, block);
-        }
+        assert(function);
+        gtirb::Symbol *gSymbol = get_canonical_symbol(
+            function->getAddress(), function->getName(), gCtx.module);
+        gCtx.functionId = symbol_to_function[gSymbol->getUUID()];
+        gCtx.addBlockToFunction(new_block, block);
 
         log_chunk("- Split (Code): ", original_addr, " -> ",
             original_addr + original_size);
@@ -1775,8 +1776,14 @@ public:
 
         gtirb::Symbol *gSymbol = get_canonical_symbol(
             addr, symName, gCtx.module);
+
+        // Ignore duplicate function definitions
+        if (gCtx.symbolInfoExists(gSymbol)) {
+            log_chunk("  Duplicate");
+            return;
+        }
         gCtx.functionId = gCtx.assignFunctionId(gSymbol);
-        function_to_uuid[function] = *gCtx.functionId;
+        symbol_to_function[gSymbol->getUUID()] = *gCtx.functionId;
         gCtx.addSymbolInfo(
             gSymbol, symSize, eSymTypeStr(symType), eSymBindingStr(symBind));
 
