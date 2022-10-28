@@ -1820,6 +1820,9 @@ public:
                                               C, blockOffset, block->getSize());
         block_addrs[block->getAddress()] = block->getSize();
         block_to_function[codeBlock->getUUID()] = *gCtx.functionId;
+        if (block->getAddress() == eCtx.program->getEntryPointAddress()) {
+            gCtx.module->setEntryPoint(codeBlock);
+        }
 
         gCtx.addBlockToFunction(codeBlock);
 
