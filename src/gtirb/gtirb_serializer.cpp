@@ -244,9 +244,8 @@ public:
             if (previousBlock) {
                 auto previous_iter = funcBlocks[*functionId].find(
                     previousBlock->getUUID());
-                if (previous_iter != insert_iter) {
-                    insert_iter = std::next(previous_iter);
-                }
+                assert(previous_iter != funcBlocks[*functionId].end());
+                insert_iter = std::next(previous_iter);
             }
             funcBlocks[*functionId].insert(insert_iter, codeBlock->getUUID());
             auto &funcEntry =
