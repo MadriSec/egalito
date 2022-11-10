@@ -761,11 +761,28 @@ public:
             return output;
         }
 
-        static std::optional<EdgeInfo> from_instruction(
+        static std::vector<EdgeInfo> from_jumptable(
+            IndirectJumpInstruction *instruction, gtirb::Addr source) {
+            auto output = std::vector<EdgeInfo>();
+            for (auto jumptable : instruction->getJumpTables()) {
+                for (JumpTableEntry *entry : CIter::children(jumptable)) {
+                    auto link = entry->getLink();
+                    auto dest = gtirb::Addr(link->getTargetAddress());
+                    output.push_back(
+                        EdgeInfo(source, dest, gtirb::EdgeType::Branch,
+                            gtirb::ConditionalEdge::OnFalse,
+                            gtirb::DirectEdge::IsIndirect));
+                }
+            }
+            return output;
+        }
+
+        static std::vector<EdgeInfo> from_instruction(
             Instruction *instruction) {
+            auto output = std::vector<EdgeInfo>();
             auto semantic = instruction->getSemantic();
             if ((!semantic) || (!semantic->isControlFlow())) {
-                return std::nullopt;
+                return output;
             }
 
             auto source = gtirb::Addr(instruction->getAddress());
@@ -774,28 +791,38 @@ public:
                 dest = gtirb::Addr(link->getTargetAddress());
             }
 
-            std::optional<EdgeInfo> output = std::nullopt;
             if (dynamic_cast<ReturnInstruction *>(semantic)) {
-                output = EdgeInfo(source, dest, gtirb::EdgeType::Return,
+                output.push_back(EdgeInfo(source, dest, gtirb::EdgeType::Return,
                     gtirb::ConditionalEdge::OnFalse,
-                    gtirb::DirectEdge::IsDirect);
+                    gtirb::DirectEdge::IsDirect));
             }
             else if (dynamic_cast<IndirectCallInstruction *>(semantic)) {
-                output = EdgeInfo(source, dest, gtirb::EdgeType::Call,
+                output.push_back(EdgeInfo(source, dest, gtirb::EdgeType::Call,
                     gtirb::ConditionalEdge::OnFalse,
-                    gtirb::DirectEdge::IsIndirect);
+                    gtirb::DirectEdge::IsIndirect));
             }
-            else if (dynamic_cast<IndirectJumpInstruction *>(semantic)) {
-                output = EdgeInfo(source, dest, gtirb::EdgeType::Branch,
-                    gtirb::ConditionalEdge::OnFalse,
-                    gtirb::DirectEdge::IsIndirect);
+            else if (auto ijmp = dynamic_cast<IndirectJumpInstruction *>(
+                         semantic)) {
+                if (ijmp->isForJumpTable()) {
+                    output = from_jumptable(ijmp, source);
+                }
+                else {
+                    output.push_back(
+                        EdgeInfo(source, dest, gtirb::EdgeType::Branch,
+                            gtirb::ConditionalEdge::OnFalse,
+                            gtirb::DirectEdge::IsIndirect));
+                }
             }
             else if (auto assembly = semantic->getAssembly()) {
-                output = from_assembly(assembly, source, dest);
+                if (auto dest_info = from_assembly(assembly, source, dest)) {
+                    output.push_back(*dest_info);
+                }
             }
             else if (auto *cfi = dynamic_cast<ControlFlowInstructionBase *>(
                          semantic)) {
-                output = from_control_flow(cfi, source, dest);
+                if (auto dest_info = from_control_flow(cfi, source, dest)) {
+                    output.push_back(*dest_info);
+                }
             }
             else {
                 LOG(0, "WARNING: Unknown edge at " << source);
@@ -1754,7 +1781,8 @@ public:
         auto symSize = function->getSize();
         auto symType = Symbol::SymbolType::TYPE_FUNC;
         auto symBind = Symbol::BindingType::BIND_LOCAL;
-        if (function->getAddress() == eCtx.program->getEntryPointAddress()) {
+        if (function->getRange().contains(
+                eCtx.program->getEntryPointAddress())) {
             // Make sure we keep the defined entry point
             symName = "_start";
             function->setName(symName);
@@ -1820,7 +1848,8 @@ public:
                                               C, blockOffset, block->getSize());
         block_addrs[block->getAddress()] = block->getSize();
         block_to_function[codeBlock->getUUID()] = *gCtx.functionId;
-        if (block->getAddress() == eCtx.program->getEntryPointAddress()) {
+        if (block->getRange().contains(eCtx.program->getEntryPointAddress())) {
+            log_chunk("  EntryPoint");
             gCtx.module->setEntryPoint(codeBlock);
         }
 
@@ -1884,11 +1913,11 @@ public:
         log_chunk("  Instruction offset: ", instrOffset);
         std::copy(data.begin(), data.end(), instrPos);
 
-        auto edge = EdgeInfo::from_instruction(instruction);
-        if (edge) {
-            log_chunk("  Edge: ", edge->type);
+        auto instr_edges = EdgeInfo::from_instruction(instruction);
+        if (!instr_edges.empty()) {
+            log_chunk("  Edge: ", instr_edges[0].type);
             is_fallthrough_function = false;
-            edges.push_back(*edge);
+            edges.insert(edges.end(), instr_edges.begin(), instr_edges.end());
         }
 
         auto link = semantic->getLink();
