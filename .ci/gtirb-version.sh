@@ -1,1 +1,1 @@
-test/script/gtirb-version.sh
+../test/script/gtirb-version.sh
