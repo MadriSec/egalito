@@ -1,7 +1,7 @@
 #!/bin/bash -ex
 # Installs gtirb in a barely-os-agnostic way
 # If able to be downloaded and installed from apt, it will do so
-# Otherwise, it installs from source by cloaning the gtirb repo.
+# Otherwise, it installs from source by cloning the gtirb repo.
 # Meant to be used as a part of the dockerfile building process
 set -ex
 
@@ -17,7 +17,9 @@ if [[ "$(lsb_release --short --id)" == "Ubuntu" ]]; then
 
     add-apt-repository -y ppa:mhier/libboost-latest
     apt-get update -y
-    apt-get install -y libcapstone-dev libgtirb-dev libgtirb-dbg libgtirb-pprinter ddisasm gtirb-pprinter
+    apt-get install -y libcapstone-dev libgtirb-pprinter ddisasm gtirb-pprinter
+    GTIRB_VERSION=$($(dirname $0)/../../.ci/gtirb-version.sh)
+    apt-get install -y libgtirb-dev-$GTIRB_VERSION libgtirb-dbg-$GTIRB_VERSION
     exit
 fi
 apt-get install -y software-properties-common
