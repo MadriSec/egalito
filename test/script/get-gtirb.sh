@@ -18,8 +18,12 @@ if [[ "$(lsb_release --short --id)" == "Ubuntu" ]]; then
     add-apt-repository -y ppa:mhier/libboost-latest
     apt-get update -y
     apt-get install -y libcapstone-dev libgtirb-pprinter ddisasm gtirb-pprinter
-    GTIRB_VERSION=$($(dirname $0)/../../.ci/gtirb-version.sh)
-    apt-get install -y libgtirb-dev-$GTIRB_VERSION libgtirb-dbg-$GTIRB_VERSION
+    if [ "$GTIRB_RELEASE" == "stable" ]; then
+        GTIRB_VERSION=$($(dirname $0)/../../.ci/gtirb-version.sh)
+        apt-get install -y libgtirb-dev-$GTIRB_VERSION libgtirb-dbg-$GTIRB_VERSION
+    else 
+        apt-get install -y libgtirb-dev libgtirb-dbg
+    fi
     exit
 fi
 apt-get install -y software-properties-common
