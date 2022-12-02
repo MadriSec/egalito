@@ -19,7 +19,7 @@ if [[ "$(lsb_release --short --id)" == "Ubuntu" ]]; then
     apt-get update -y
     apt-get install -y libcapstone-dev libgtirb-pprinter ddisasm gtirb-pprinter
     if [ "$GTIRB_RELEASE" == "stable" ]; then
-        GTIRB_VERSION=$($(dirname $0)/../../.ci/gtirb-version.sh)
+        GTIRB_VERSION=$($(dirname $0)/gtirb-version.sh)
         apt-get install -y libgtirb-dev-$GTIRB_VERSION libgtirb-dbg-$GTIRB_VERSION
     else 
         apt-get install -y libgtirb-dev libgtirb-dbg
