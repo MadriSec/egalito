@@ -1520,6 +1520,8 @@ public:
             }
         }
         gSection->addFlag(tls_ld_flag);
+        // Make sure we don't create a symbol with the same name as a section
+        duplicate_sym_names[eSection->getName()] = true;
 
         gCtx.section = gSection;
         eCtx.section = eSection;
