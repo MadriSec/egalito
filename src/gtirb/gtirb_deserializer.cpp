@@ -620,6 +620,9 @@ void GtirbDeserializer::buildGlobalVariables(
     DataRegionList *eg_regions = eg_module->getDataRegionList();
     for (auto it = gtirb_module.sections_begin();
          it != gtirb_module.sections_end(); ++it) {
+        if (it->getSize() == 0) {
+            continue;
+        }
         // Find the corresponding Egalito section
         std::string sec_name = it->getName();
         DataSection *eg_section = eg_regions->findDataSection(sec_name);
@@ -749,6 +752,9 @@ void GtirbDeserializer::buildDataLinks(Conductor *conductor,
     DataRegionList *eg_regions = eg_module->getDataRegionList();
     for (auto it = gtirb_module.sections_begin();
          it != gtirb_module.sections_end(); ++it) {
+        if (it->getSize() == 0) {
+            continue;
+        }
         // Find the corresponding Egalito section
         std::string sec_name = it->getName();
         DataSection *eg_section = eg_regions->findDataSection(sec_name);
