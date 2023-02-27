@@ -437,7 +437,7 @@ public:
             }
 
             if (dynamic_cast<PLTLink *>(link)) {
-                li.attrs.addFlag(gtirb::SymAttribute::PltRef);
+                li.attrs.insert(gtirb::SymAttribute::PLT);
             }
             else if (dynamic_cast<OffsetLink *>(link)) {
                 auto *target = link->getTarget();
@@ -471,7 +471,7 @@ public:
                 }
 
                 if (section->getName() == ".got") {
-                    li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
+                    li.attrs.insert(gtirb::SymAttribute::GOTREL);
                 }
             }
             else if (auto extSymLink = dynamic_cast<ExternalSymbolLink *>(
