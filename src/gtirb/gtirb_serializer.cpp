@@ -34,6 +34,11 @@
 // Leverage definitions for the sanctioned AuxData tables.
 #include <gtirb/AuxDataSchema.hpp>
 
+// Handle symbolic attributes from protobuf versions 3 or 4
+#if GTIRB_PROTOBUF_VERSION < 4    
+#define GTIRB_PROTOBUF_4
+#endif
+
 std::string eSymTypeStr(Symbol::SymbolType eSymType) {
     switch (eSymType) {
         case Symbol::TYPE_NOTYPE:
@@ -437,7 +442,11 @@ public:
             }
 
             if (dynamic_cast<PLTLink *>(link)) {
+#ifdef GTIRB_PROTOBUF_4    
                 li.attrs.insert(gtirb::SymAttribute::PLT);
+#else
+                li.attrs.addFlag(gtirb::SymAttribute::PltRef);
+#endif
             }
             else if (dynamic_cast<OffsetLink *>(link)) {
                 auto *target = link->getTarget();
@@ -471,7 +480,11 @@ public:
                 }
 
                 if (section->getName() == ".got") {
-                    li.attrs.insert(gtirb::SymAttribute::GOTREL);
+#ifdef GTIRB_PROTOBUF_4    
+                    li.attrs.insert(gtirb::SymAttribute::GOT);
+#else
+                    li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
+#endif
                 }
             }
             else if (auto extSymLink = dynamic_cast<ExternalSymbolLink *>(
