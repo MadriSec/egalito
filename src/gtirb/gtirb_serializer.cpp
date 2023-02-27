@@ -36,7 +36,7 @@
 
 // Handle symbolic attributes from protobuf versions 3 or 4
 #if GTIRB_PROTOBUF_VERSION < 4
-#define GTIRB_PROTOBUF_4
+#define GTIRB_PROTOBUF_3
 #endif
 
 std::string eSymTypeStr(Symbol::SymbolType eSymType) {
@@ -442,10 +442,10 @@ public:
             }
 
             if (dynamic_cast<PLTLink *>(link)) {
-#ifdef GTIRB_PROTOBUF_4
-                li.attrs.insert(gtirb::SymAttribute::PLT);
-#else
+#ifdef GTIRB_PROTOBUF_3
                 li.attrs.addFlag(gtirb::SymAttribute::PltRef);
+#else
+                li.attrs.insert(gtirb::SymAttribute::PLT);
 #endif
             }
             else if (dynamic_cast<OffsetLink *>(link)) {
@@ -481,9 +481,9 @@ public:
 
                 if (section->getName() == ".got") {
 #ifdef GTIRB_PROTOBUF_4
-                    li.attrs.insert(gtirb::SymAttribute::GOT);
-#else
                     li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
+#else
+                    li.attrs.insert(gtirb::SymAttribute::GOT);
 #endif
                 }
             }
