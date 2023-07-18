@@ -139,29 +139,27 @@ static size_t getBinaryTypeFlag(const gtirb::Module &module) {
     const std::vector<std::string>
         *bin_types = module.getAuxData<gtirb::schema::BinaryType>();
 
-    if (bin_types->size() != 1) {
+    if ((bin_types->size() < 1) || (bin_types->size() > 2)) {
         LOG(1, "WARNING: Found "
                    << bin_types->size()
-                   << " ELF binary type flags - should be exactly one!");
-        assert(false && "Should be exactly 1 ELF binary type flag");
+                   << " ELF binary type flags - should be one or two!");
+        assert(false && "Should only be one or two ELF binary type flags");
     }
 
     size_t e_type = ET_EXEC;
-    if (bin_types->size() > 0) {
-        std::string bin_type = bin_types->front();
-        if (bin_type == "DYN") {
-            e_type = ET_DYN;
-        }
-        else if (bin_type == "EXEC") {
-            e_type = ET_EXEC;
-        }
-        else if (bin_type == "REL") {
-            e_type = ET_EXEC;
-        }
-        else {
-            LOG(1, "WARNING: unrecognized GTIRB binary type: " << bin_type);
-            assert(false && "Unrecoginzed GTIRB binary type");
-        }
+    std::string bin_type = bin_types->front();
+    if ((bin_type == "DYN") || (bin_type == "SHARED") || (bin_type == "PIE")) {
+        e_type = ET_DYN;
+    }
+    else if (bin_type == "EXEC") {
+        e_type = ET_EXEC;
+    }
+    else if (bin_type == "REL") {
+        e_type = ET_EXEC;
+    }
+    else {
+        LOG(1, "WARNING: unrecognized GTIRB binary type: " << bin_type);
+        assert(false && "Unrecoginzed GTIRB binary type");
     }
     return e_type;
 }
