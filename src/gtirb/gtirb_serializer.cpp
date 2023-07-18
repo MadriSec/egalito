@@ -488,7 +488,8 @@ public:
 #if GTIRB_LT_1_11_0
                     li.attrs.addFlag(gtirb::SymAttribute::GotRelPC);
 #else
-                    li.attrs.insert(gtirb::SymAttribute::GOTREL);
+                    li.attrs.insert(gtirb::SymAttribute::GOT);
+                    li.attrs.insert(gtirb::SymAttribute::PCREL);
 #endif
                 }
             }
