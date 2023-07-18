@@ -36,7 +36,9 @@
 
 // Handle symbolic attributes for GTIRB from version 1.10 or earlier
 #define GTIRB_LT_1_11_0 (GTIRB_MAJOR_VERSION == 1) && (GTIRB_MINOR_VERSION < 11)
-#define GTIRB_LT_1_11_1 (GTIRB_MAJOR_VERSION == 1) && (GTIRB_MINOR_VERSION < 11) && (GTIRB_PATCH_VERSION < 1)
+#define GTIRB_LT_1_11_1                                         \
+    (GTIRB_MAJOR_VERSION == 1) && (GTIRB_MINOR_VERSION < 11) && \
+        (GTIRB_PATCH_VERSION < 1)
 
 std::string eSymTypeStr(Symbol::SymbolType eSymType) {
     switch (eSymType) {
@@ -327,16 +329,11 @@ public:
             else if (elfMap->isObjectFile()) {
                 binType.push_back("REL");
             }
-            else if (elfMap->isDynamic()) {
-                binType.push_back("DYN");
+            else if (elfMap->isSharedLibrary()) {
 #if GTIRB_LT_1_11_1
+                binType.push_back("DYN");
 #else
-                if (elfMap->isSharedLibrary()) {
-                    binType.push_back("SHARED");
-                }
-                else {
-                    binType.push_back("PIE");
-                }
+                binType.push_back("EXEC");
 #endif
             }
         }
