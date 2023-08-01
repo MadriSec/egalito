@@ -138,27 +138,25 @@ static size_t gtirb_isa_to_machine(gtirb::ISA isa) {
 static size_t getBinaryTypeFlag(const gtirb::Module &module) {
     const std::vector<std::string>
         *bin_types = module.getAuxData<gtirb::schema::BinaryType>();
-
-    if ((bin_types->size() < 1) || (bin_types->size() > 2)) {
-        LOG(1, "WARNING: Found "
-                   << bin_types->size()
-                   << " ELF binary type flags - should be one or two!");
-        assert(false && "Should only be one or two ELF binary type flags");
-    }
+    assert(bin_types != nullptr);
 
     size_t e_type = ET_EXEC;
-    std::string bin_type = bin_types->front();
-    if ((bin_type == "DYN") || (bin_type == "SHARED") || (bin_type == "PIE")) {
+    if ((*bin_types == std::vector<std::string>{"DYN", "SHARED"}) || (*bin_types == std::vector<std::string>{"DYN", "PIE"})) {
         e_type = ET_DYN;
     }
-    else if (bin_type == "EXEC") {
+    else if (*bin_types == std::vector<std::string>{"EXEC"}) {
         e_type = ET_EXEC;
     }
-    else if (bin_type == "REL") {
+    else if (*bin_types == std::vector<std::string>{"REL"}) {
         e_type = ET_EXEC;
     }
     else {
-        LOG(1, "WARNING: unrecognized GTIRB binary type: " << bin_type);
+        std::string warning_msg = "WARNING: unrecognized GTIRB binary type: ";
+        for (std::string bt : *bin_types){
+            warning_msg.append(bt);
+            warning_msg.append(" ");
+        }
+        LOG(1, warning_msg);
         assert(false && "Unrecoginzed GTIRB binary type");
     }
     return e_type;

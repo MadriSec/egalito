@@ -330,10 +330,15 @@ public:
                 binType.push_back("REL");
             }
             else if (elfMap->isSharedLibrary()) {
-#if GTIRB_LT_1_11_1
                 binType.push_back("DYN");
+#if GTIRB_LT_1_11_1
 #else
-                binType.push_back("EXEC");
+                if (elfMap->hasInterpreter()) {
+                    binType.push_back("PIE");
+                }
+                else {
+                    binType.push_back("SHARED");
+                }
 #endif
             }
         }
