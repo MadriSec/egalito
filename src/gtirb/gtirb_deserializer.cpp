@@ -141,7 +141,8 @@ static size_t getBinaryTypeFlag(const gtirb::Module &module) {
     assert(bin_types != nullptr);
 
     size_t e_type = ET_EXEC;
-    if ((*bin_types == std::vector<std::string>{"DYN", "SHARED"}) || (*bin_types == std::vector<std::string>{"DYN", "PIE"})) {
+    if ((*bin_types == std::vector<std::string>{"DYN", "SHARED"}) ||
+        (*bin_types == std::vector<std::string>{"DYN", "PIE"})) {
         e_type = ET_DYN;
     }
     else if (*bin_types == std::vector<std::string>{"EXEC"}) {
@@ -152,7 +153,7 @@ static size_t getBinaryTypeFlag(const gtirb::Module &module) {
     }
     else {
         std::string warning_msg = "WARNING: unrecognized GTIRB binary type: ";
-        for (std::string bt : *bin_types){
+        for (std::string bt : *bin_types) {
             warning_msg.append(bt);
             warning_msg.append(" ");
         }
