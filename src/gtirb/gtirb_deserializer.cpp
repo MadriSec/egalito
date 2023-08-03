@@ -141,7 +141,8 @@ static size_t getBinaryTypeFlag(const gtirb::Module &module) {
     assert(bin_types != nullptr);
 
     size_t e_type = ET_EXEC;
-    if ((*bin_types == std::vector<std::string>{"DYN", "SHARED"}) ||
+    if ((*bin_types == std::vector<std::string>{"DYN"}) ||
+        (*bin_types == std::vector<std::string>{"DYN", "SHARED"}) ||
         (*bin_types == std::vector<std::string>{"DYN", "PIE"})) {
         e_type = ET_DYN;
     }
