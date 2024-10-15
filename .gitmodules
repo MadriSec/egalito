@@ -1,13 +1,13 @@
 [submodule "test/binary"]
 	path = test/binary
-	url = ../egalito-tests.git
+	url = https://gitlab.com/Egalito/egalito-tests.git 
 [submodule "dep/distorm3"]
 	path = dep/distorm3
 	url = https://github.com/gdabah/distorm.git
 	ignore = all 
 [submodule "docs"]
 	path = docs
-	url = ../egalito-docs.git
+	url = https://gitlab.com/Egalito/egalito-docs.git 
 [submodule "dep/keystone"]
 	path = dep/keystone
 	url = https://github.com/keystone-engine/keystone.git
