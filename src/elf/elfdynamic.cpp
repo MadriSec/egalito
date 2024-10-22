@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <elf.h>
 #include <glob.h>
+#include <unistd.h>
 
 #include "elfdynamic.h"
 #include "elfmap.h"
@@ -106,6 +107,34 @@ void ElfDynamic::setupSearchPath() {
     int musl = isFeatureEnabled("EGALITO_MUSL");
 
     auto cfs = ConductorFilesystem::getInstance();
+
+    char *cwd = get_current_dir_name();
+    std::string currentPath(cwd);
+    int count=0;
+    int index=-1;
+    std::string parentPath;
+    for(int i=currentPath.length()-1; i>=0; i--)
+    {
+        if(currentPath[i]=='/')
+            count++;
+        if(count==2)
+        {
+            index=i;
+            break;
+        }
+    }
+    if(index != -1)
+    {
+        parentPath=currentPath.substr(0,index);
+    }
+
+    const char *user_library_path = getenv("USER_LIBRARY_PATH");
+    if(user_library_path) {
+        split(user_library_path, ':', std::back_inserter(searchPath));
+    }
+
+
+
     if(musl) {
         parseMuslLdConfig(cfs->transform("/etc/ld-musl-x86_64.path"), searchPath);
     }
@@ -214,12 +243,15 @@ void ElfDynamic::resolveLibraries() {
 void ElfDynamic::processLibrary(const std::string &fullPath,
     const std::string &filename, Library *depend) {
 
+   int isLdEnabled = isFeatureEnabled("ENABLE_LD");
+
     if(filename == "ld-linux-x86-64.so.2"
         || filename == "ld-linux-aarch64.so.1"
         || filename == "ld-linux-riscv64-lp64d.so.1") {
 
         LOG(2, "    skipping processing of ld.so for now");
-        return;
+	if (!isLdEnabled)
+		return;
     }
     if(!isFeatureEnabled("EGALITO_USE_DISASM")) {
         if(filename == "libcapstone.so.4" || filename == "libcapstone.so.3") {
