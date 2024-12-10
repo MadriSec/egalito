@@ -1,6 +1,6 @@
 # Egalito Debian Bookworm Walkthrough 
 
-## Pulling SysPartCode & Egalito
+## Pulling Egalito
 ```shell
 git clone git@github.com:MadriSec/egalito.git
 git checkout metis-main-syspart # May not be needed later
