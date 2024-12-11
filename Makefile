@@ -1,36 +1,41 @@
-# root Makefile for egalito
-# to change settings, see env.mk
+# Root Makefile for egalito
+# To change settings, see env.mk
 
 ifdef USE_CONFIG
-	include $(USE_CONFIG)
-	export
+    include $(USE_CONFIG)
+    export
 endif
 
-ifneq ($(MAKEVERBOSE),)
-    MAKE += --no-print-directory
-    short-make = @+echo '>>>' MAKE -C ${1} ${2} ;\
-        $(MAKE) -C ${1} ${2} && echo '<<<' MAKE -C ${1} ${2}
-else
-    short-make = +$(MAKE) -C ${1} ${2}
-endif
+MAKEFLAGS += -j $(shell nproc)
 
-.PHONY: all src test app clean realclean
+# Run the GTIRB installation script first
+.PHONY: all src test app clean realclean get-gtirb
+
 all: dep src test app
 	@true
+
+dep: get-gtirb dep/built
+
+get-gtirb:
+	@echo "Running get-gtirb.sh..."
+	./test/script/get-gtirb.sh
+
+dep/built: dep/Makefile
+	$(call short-make,dep)
+
 src: dep config
 	$(call short-make,src)
-config: 
-	$(call short-make, src/config)
+
+config:
+	$(call short-make,src/config)
+
 test: src
 	$(call short-make,test)
 	$(call short-make,test/example)
 	$(call short-make,test/binary all symlinks)
-app: src | test
-	$(call short-make,app)
-dep: dep/built  # note: dep is not phony
-dep/built: dep/Makefile
-	$(call short-make,dep)
 
+app: src test
+	$(call short-make,app)
 
 clean realclean:
 	$(call short-make,app,clean)
@@ -39,3 +44,4 @@ clean realclean:
 	$(call short-make,test/example,clean)
 	$(call short-make,test/binary,clean)
 	$(call short-make,dep,$@)
+
