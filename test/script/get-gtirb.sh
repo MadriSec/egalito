@@ -39,7 +39,7 @@ build_and_install_gtirb_from_source() {
     cd "$install_dir/gtirb/build"
     cmake .. -DGTIRB_BUILD_SHARED_LIBS=OFF
     cmake --build . -- -j $(nproc)
-    cmake --install .
+    make install 
     cd -
     rm -rf "$install_dir"
 }
