@@ -5,8 +5,9 @@ include:
 variables:
     GIT_SUBMODULE_STRATEGY: recursive
     GIT_STRATEGY: clone
-    DEBIAN_IMAGE: registry.gitlab.com/egalito/egalito/test/debian-buster:gtirb
-    UBUNTU20_IMAGE: registry.gitlab.com/egalito/egalito/test/ubuntu-20.04:gtirb
+    DEBIAN10_IMAGE: registry.gitlab.com/madrisec/egalito/test/debian-buster:gtirb
+    DEBIAN12_IMAGE: registry.gitlab.com/madrisec/egalito/test/debian-bookworm:gtirb
+    UBUNTU20_IMAGE: registry.gitlab.com/madrisec/egalito/test/ubuntu-20.04:gtirb
     # AARCH64_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/aarch64
     # ARM_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/egalito/arm
     DOCKER_DIR: ./test/docker
@@ -62,13 +63,21 @@ update-docker-ubuntu-20:
     DOCKER_IMAGE_TAG: $UBUNTU20_IMAGE
     DOCKER_IMAGE_BASE: ubuntu:20.04
 
-update-docker-debian:
+update-docker-debian-10:
   extends: .docker-template
   variables:
-    DOCKER_IMAGE_TAG: $DEBIAN_IMAGE
+    DOCKER_IMAGE_TAG: $DEBIAN10_IMAGE
     DOCKER_IMAGE_BASE: debian:buster
   # The debian image has to install from source, which takes extra time.
   timeout: 2h
+
+update-docker-debian-12:
+  extends: .docker-template
+  variables:
+    DOCKER_IMAGE_TAG: $DEBIAN12_IMAGE
+    DOCKER_IMAGE_BASE: debian:bookworm
+  # The debian image has to install from source, which takes extra time.
+  timeout: 2h  
 
 check-format:
   stage: check-format
@@ -160,9 +169,13 @@ build-ubuntu20-unstable:
   before_script:
     - bash test/script/get-gtirb.sh unstable
 
-build-debian:
+build-debian-10:
   extends: .build-template
-  image: $DEBIAN_IMAGE
+  image: $DEBIAN10_IMAGE
+
+build-debian-12:
+  extends: .build-template
+  image: $DEBIAN12_IMAGE
 
 .test-template: &test-template
   variables:
@@ -193,10 +206,15 @@ gtirb-test-ubuntu20:
   script:
     - test/gtirb/run_test.sh
 
-tests-debian:
+tests-debian-10:
   extends: .test-template
-  needs: [build-debian]
-  image: $DEBIAN_IMAGE
+  needs: [build-debian-10]
+  image: $DEBIAN10_IMAGE
+
+tests-debian-12:
+  extends: .test-template
+  needs: [build-debian-12]
+  image: $DEBIAN12_IMAGE
 
 .package-ubuntu20-template:
   image: $UBUNTU20_IMAGE
