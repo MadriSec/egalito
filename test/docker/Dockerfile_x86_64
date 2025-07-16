@@ -1,7 +1,7 @@
 # The base OS of the docker image can be modified by providing (e.g.) the flag
 # --build-arg BASE_IMAGE=ubuntu:18.04
 # to docker build
-ARG BASE_IMAGE="debian:buster"
+ARG BASE_IMAGE="debian:bookworm"
 
 # Build a docker image with the dependencies for building and installing egalito
 FROM ${BASE_IMAGE} AS dependencies
@@ -14,7 +14,7 @@ RUN apt-get update && \
   git \
   gosu \
   libc6-dbg \
-  libstdc++6-7-dbg \
+  libstdc++6-11-dbg \
   libreadline-dev \
   lsb-release \
   unzip
@@ -22,10 +22,7 @@ RUN apt-get update && \
 FROM dependencies AS test
 
 RUN DEBIAN_FRONTEND=noninteractive \
-    apt-get install -y python3-pip clang-format-6.0 lcov && \
-    python3 -m pip install pre-commit
-
-RUN ln -s /usr/bin/clang-format-6.0 /usr/bin/clang-format
+    apt-get install -y python3-pip clang-format lcov pre-commit
 
 CMD ["/bin/bash"]
 

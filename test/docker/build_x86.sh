@@ -4,7 +4,7 @@ REGISTRY_BASE="registry.gitlab.com/egalito/egalito"
 DOCKERFILE="Dockerfile_x86_64"
 BUILT_IMAGES=()
 
-for BASE_IMAGE in "ubuntu:20.04" "debian:buster"; do {
+for BASE_IMAGE in "ubuntu:20.04" "debian:bookworm"; do {
     # Gives test image based on ubuntu:20.04 the tag test/ubuntu-20.04
     # (Tags within the registry can be used for versioning)
     TAG="${REGISTRY_BASE}/test/${BASE_IMAGE//:/-}:gtirb"
