@@ -1,7 +1,7 @@
 #ifndef EGALITO_CONFIG_X86_64_DEBIAN_H
 #define EGALITO_CONFIG_X86_64_DEBIAN_H
 
-/* For Debian testing (buster) on riscv */
+/* For Debian testing (bookworm) on riscv */
 
 /* common */
 

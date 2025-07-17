@@ -76,6 +76,10 @@ check-format:
   before_script: []
   needs: []
   script:
+    # Install clang-format pinned to version 6.0
+    - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y clang-format-6.0
+    - ln -s /usr/bin/clang-format-6.0 /usr/bin/clang-format
+    # Run pre-commit formatting checks
     - pre-commit install-hooks
     - pre-commit run --all-files --show-diff-on-failure
     # helper message for new committers

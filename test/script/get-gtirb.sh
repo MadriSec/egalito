@@ -21,8 +21,7 @@ if [[ "$(lsb_release --short --id)" == "Ubuntu" ]]; then
     exit
 fi
 apt-get install -y software-properties-common
-add-apt-repository ppa:mhier/libboost-latest
-apt-get install -y libprotobuf-dev protobuf-compiler libboost1.67-dev cmake git
+apt-get install -y libprotobuf-dev protobuf-compiler libboost-dev cmake git
 
 # Otherwise, install from source
 # Build & install GTIRB
