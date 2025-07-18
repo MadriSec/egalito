@@ -5,7 +5,7 @@ include:
 variables:
     GIT_SUBMODULE_STRATEGY: recursive
     GIT_STRATEGY: clone
-    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/test/debian-bookworm:gtirb
+    DEBIAN_IMAGE: $CI_REGISTRY_IMAGE/test/debian-bullseye:gtirb
     UBUNTU20_IMAGE: $CI_REGISTRY_IMAGE/test/ubuntu-20.04:gtirb
     # AARCH64_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/aarch64
     # ARM_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/egalito/arm
@@ -45,7 +45,7 @@ stages:
     - docker:dind
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker build --build-arg "BASE_IMAGE=$DOCKER_IMAGE_BASE" --network=host --target=test --tag "$DOCKER_IMAGE_TAG" -f "test/docker/Dockerfile_x86_64" test/docker/
+    - docker build --build-arg "BASE_IMAGE=$DOCKER_IMAGE_BASE" --target=test --tag "$DOCKER_IMAGE_TAG" -f "test/docker/Dockerfile_x86_64" test/docker/
     - docker push $DOCKER_IMAGE_TAG
   rules:
     # Only run for merges with docker changes
@@ -66,7 +66,7 @@ update-docker-debian:
   extends: .docker-template
   variables:
     DOCKER_IMAGE_TAG: $DEBIAN_IMAGE
-    DOCKER_IMAGE_BASE: debian:bookworm
+    DOCKER_IMAGE_BASE: debian:bullseye
   # The debian image has to install from source, which takes extra time.
   timeout: 2h
 

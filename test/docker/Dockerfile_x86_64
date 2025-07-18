@@ -1,12 +1,14 @@
 # The base OS of the docker image can be modified by providing (e.g.) the flag
 # --build-arg BASE_IMAGE=ubuntu:18.04
 # to docker build
-ARG BASE_IMAGE="debian:bookworm"
+ARG BASE_IMAGE="debian:bullseye"
 
 # Build a docker image with the dependencies for building and installing egalito
 FROM ${BASE_IMAGE} AS dependencies
 
-RUN apt-get update && \
+# Record installed version of libstdc++6 and install matching dbg package.
+RUN STDCPP_VERSION=$(dpkg -s libstdc++6 | grep -oP 'Version: \K\d+') && \
+  apt-get update && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
   build-essential \
   g++ \
@@ -14,15 +16,18 @@ RUN apt-get update && \
   git \
   gosu \
   libc6-dbg \
-  libstdc++6-11-dbg \
+  libstdc++6-$STDCPP_VERSION-dbg \
   libreadline-dev \
   lsb-release \
   unzip
 
 FROM dependencies AS test
 
+# TODO - use pre-commit package for Debian
 RUN DEBIAN_FRONTEND=noninteractive \
-    apt-get install -y python3-pip clang-format lcov pre-commit
+    apt-get install -y python3-pip lcov && \
+    python3 -m pip install pre-commit
+
 
 CMD ["/bin/bash"]
 

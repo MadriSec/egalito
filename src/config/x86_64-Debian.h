@@ -1,7 +1,7 @@
 #ifndef EGALITO_CONFIG_X86_64_DEBIAN_H
 #define EGALITO_CONFIG_X86_64_DEBIAN_H
 
-/* For Debian testing (bookworm) on X86_64 */
+/* For Debian testing (bullseye) on X86_64 */
 
 /* common */
 
