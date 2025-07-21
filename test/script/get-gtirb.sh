@@ -15,7 +15,6 @@ if [[ "$(lsb_release --short --id)" == "Ubuntu" ]]; then
     wget -O - https://download.grammatech.com/gtirb/files/apt-repo/conf/apt.gpg.key | apt-key add -
     echo "deb https://download.grammatech.com/gtirb/files/apt-repo $(lsb_release --codename --short) $GTIRB_RELEASE" | tee -a /etc/apt/sources.list
 
-    add-apt-repository -y ppa:mhier/libboost-latest
     apt-get update -y
     apt-get install -y libcapstone-dev libgtirb-pprinter ddisasm gtirb-pprinter libgtirb-dev libgtirb-dbg
     exit
