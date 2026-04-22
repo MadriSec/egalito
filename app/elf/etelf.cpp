@@ -14,16 +14,23 @@ static void parse(const std::string &filename, const std::string &output,
     EgalitoInterface egalito(/*verboseLogging=*/ !quiet, /*useLoggingEnvVar=*/ true);
 
     // Parsing ELF files can throw exceptions.
-    try {
-        egalito.initializeParsing();  // Creates Conductor and Program
+    try
+    {
+        // See if this is a GTIRB file first.
+        bool is_gtirb = egalito.importGtirb(filename);
 
-        // Parse a filename; if second arg is true, parse shared libraries
-        // recursively. This parse() can be called repeatedly to inject other
-        // dependencies, and the recursive closure can be parsed with
-        // parseRecursiveDependencies() at any later stage.
-        std::cout << "Parsing ELF file"
-            << (oneToOne ? "" : " and all shared library dependencies") << "...\n";
-        egalito.parse(filename, !oneToOne);
+        if (!is_gtirb)
+        {
+            egalito.initializeParsing(); // Creates Conductor and Program
+
+            // Parse a filename; if second arg is true, parse shared libraries
+            // recursively. This parse() can be called repeatedly to inject other
+            // dependencies, and the recursive closure can be parsed with
+            // parseRecursiveDependencies() at any later stage.
+            std::cout << "Parsing ELF file"
+                      << (oneToOne ? "" : " and all shared library dependencies") << "...\n";
+            egalito.parse(filename, !oneToOne);
+        }
 
         // This is where transformations, if any, should be applied to program.
         //auto program = egalito.getProgram();

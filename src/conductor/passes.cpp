@@ -112,6 +112,25 @@ void ConductorPasses::newArchivePasses(Program *program) {
     }
 }
 
+void ConductorPasses::newGtirbPasses(Program *program) {
+    // TODO: What needs to be done here?
+    for(auto module : CIter::children(program)) {
+        RUN_PASS(InternalCalls(), module);
+        RUN_PASS(InferLinksPass(module->getElfSpace()->getElfMap()), module);
+
+        ElfSpace *space = module->getElfSpace();
+        space->findSymbolsAndRelocs();
+        space->setAliasMap(new FunctionAliasMap(module));
+
+        ElfMap *elf = space->getElfMap();
+        RelocList *relocList = space->getRelocList();
+        PLTList::parsePLTList(elf, relocList, module);
+        if(module->getPLTList()) {
+            RUN_PASS(ExternalCalls(module->getPLTList()), module);
+        }
+    }
+}
+
 void ConductorPasses::newExecutablePasses(Program *program) {
     conductor->fixDataSections(false);
     for(auto module : CIter::children(program)) {

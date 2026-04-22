@@ -9,6 +9,7 @@
 #include "chain.h"
 #include "readline.h"
 #include "conductor/setup.h"
+#include "gtirb/gtirb_deserializer.h"
 #include "log/registry.h"
 
 void TopLevelCommand::invokeDefault(Arguments args) {
@@ -63,6 +64,11 @@ void mainLoop() {
         args.shouldHave(1);
         setup.parseEgalitoArchive(args.front().c_str());
     }, "parses and reassembles an Egalito archive");
+    topLevel.add("parse-gtirb", [&] (Arguments args) {
+        args.shouldHave(1);
+        GtirbDeserializer gtirb_ds(args.front().c_str());
+        setup.parseGtirb(gtirb_ds);
+    }, "parses the given GTIRB file");
 
     topLevel.add("inject", [&] (Arguments args) {
         args.shouldHave(1);

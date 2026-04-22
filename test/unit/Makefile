@@ -5,8 +5,7 @@ include ../../env.mk
 CFLAGS      += -I ../../src/ -I ..
 CXXFLAGS    += -I ../../src/ -I ..
 CLDFLAGS    += -L ../../src/$(BUILDDIR) -legalito -L ../framework -lframework \
-	-Wl,-rpath=$(abspath ../../src/$(BUILDDIR)) \
-	-Wl,-rpath=$(abspath ../../dep/capstone/install/lib)
+	-Wl,-rpath=$(abspath ../../src/$(BUILDDIR))
 
 CFLAGS      += '-DTESTDIR="../binary/build/"'
 CXXFLAGS    += '-DTESTDIR="../binary/build/"'
@@ -43,11 +42,7 @@ OUTPUTS = $(RUNNER)
 all: test-all .symlinks
 	@true
 
-test-all: $(OUTPUTS) | rebuild-src
-
-ifeq ($(findstring clean,$(MAKECMDGOALS)),)
-Makefile: rebuild-src
-endif
+test-all: $(OUTPUTS)
 
 $(ALL_OBJECTS): | $(BUILDTREE)
 $(BUILDTREE):
@@ -58,8 +53,7 @@ $(BUILDTREE):
 	@echo "LN-S" $(OUTPUTS)
 	@ln -sf $(BUILDDIR)runner
 
-.PHONY: rebuild-src
-rebuild-src:
+../../src/$(BUILDDIR)libegalito.so:
 	$(call short-make,../../src)
 
 # Dependencies

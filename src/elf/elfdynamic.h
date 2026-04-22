@@ -13,15 +13,14 @@ class ElfDynamic {
 private:
     // stores library names, and the library which created the dependency
     std::vector<std::pair<std::string, Library *>> dependencyList;
-    const char *rpath;
+    std::string rpath;
     LibraryList *libraryList;
-
-    std::vector<std::string> searchPath;
 public:
     ElfDynamic(LibraryList *libraryList)
-        : rpath(nullptr), libraryList(libraryList) {}
+        : libraryList(libraryList) {}
     void parse(ElfMap *elf, Library *library);
 
+    void setRPath(const std::string &newRPath);
     void addDependency(Library *library, std::string soname);
 
     std::string findSharedObject(std::string name);

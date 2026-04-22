@@ -11,6 +11,7 @@
 class Conductor;
 class Sandbox;
 class Symbol;
+class GtirbDeserializer;
 
 /** Main setup class for Egalito.
 
@@ -38,6 +39,7 @@ public:
     Module *injectElfFiles(const char *executable, Library::Role role,
         bool withSharedLibs = true, bool injectEgalito = false);
     void parseEgalitoArchive(const char *archive);
+    void parseGtirb(GtirbDeserializer &gtirb_ds, bool withSharedLibs = true);
     void injectLibrary(const char *filename);
     std::vector<Module *> addExtraLibraries(
         const std::vector<std::string> &filenames);

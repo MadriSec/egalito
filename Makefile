@@ -14,11 +14,13 @@ else
     short-make = +$(MAKE) -C ${1} ${2}
 endif
 
-.PHONY: all config src test app clean realclean
+.PHONY: all src test app clean realclean
 all: dep src test app
 	@true
-src: dep | config
+src: dep config
 	$(call short-make,src)
+config: 
+	$(call short-make, src/config)
 test: src
 	$(call short-make,test)
 	$(call short-make,test/example)
@@ -29,8 +31,6 @@ dep: dep/built  # note: dep is not phony
 dep/built: dep/Makefile
 	$(call short-make,dep)
 
-config:
-	$(call short-make,config)
 
 clean realclean:
 	$(call short-make,app,clean)
@@ -39,4 +39,4 @@ clean realclean:
 	$(call short-make,test/example,clean)
 	$(call short-make,test/binary,clean)
 	$(call short-make,dep,$@)
-	$(call short-make,config,clean)
+

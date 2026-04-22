@@ -1,6 +1,6 @@
 #ifndef EGALITO_CONFIG_H
 #define EGALITO_CONFIG_H
-#include "../config/config.h"
+#include "config/config.h"
 
 #ifndef EGALITO_PATH
     // unless overridden here, will look for libegalito in the same

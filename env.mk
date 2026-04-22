@@ -10,6 +10,10 @@ EGALITO_ROOT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 #   PROFILE=1
 #   STACK_PROTECTOR=1
 
+# Disabling the loader by default, because it uses static libraries
+# which makes building with gtirb much more difficult
+USE_LOADER=0
+
 # To cross-compile, set e.g. CROSS=aarch64-linux-gnu-
 #   for loader support, also set RTLD_TARGET to an appropriate simulator for
 #   running binaries (e.g. qemu-user-*).
@@ -52,17 +56,6 @@ AR         = ar
 
 GENERIC_FLAGS   = -Wall -Wextra -Wno-unused-parameter -I.
 
-ifneq ($(CROSS),)
-ifneq ($(CAPSTONE_INC),)
-	GENERIC_FLAGS += -isystem $(CAPSTONE_INC)
-endif
-ifneq ($(CAPSTONE_LIB),)
-	CROSSLD = -L $(CAPSTONE_LIB)
-endif
-endif
-
-CAPSTONE_DIR = $(EGALITO_ROOT_DIR)/dep/capstone/install
-GENERIC_FLAGS += -I $(CAPSTONE_DIR)/include
 ifeq ($(USE_KEYSTONE),1)
 KEYSTONE_DIR = $(EGALITO_ROOT_DIR)/dep/keystone
 GENERIC_FLAGS += -I $(KEYSTONE_DIR)/include
@@ -73,12 +66,11 @@ endif
 
 OPT_FLAGS       = -g3 -Og
 DEPFLAGS        = -MT '$@ $(@:.o=.so) $(@:.o=.d)' -MMD -MF $(@:.o=.d) -MP
-CFLAGS          = -std=gnu99 $(GENERIC_FLAGS) $(OPT_FLAGS)
-CXXFLAGS        = -std=c++14 $(GENERIC_FLAGS) $(OPT_FLAGS)
+CFLAGS          = -std=gnu99 -lstdc++fs $(GENERIC_FLAGS) $(OPT_FLAGS)
+CXXFLAGS        = -std=c++17 $(GENERIC_FLAGS) $(OPT_FLAGS)
 CLDFLAGS        = $(CROSSLD)
 
-CLDFLAGS		+= -L $(CAPSTONE_DIR)/lib -lcapstone \
-	-Wl,-rpath,$(abspath $(CAPSTONE_DIR)/lib)
+CLDFLAGS		+= -lcapstone -lstdc++fs
 
 ifdef USE_KEYSTONE  # set USE_KEYSTONE=1 to link with str->instr assembler
 	CLDFLAGS        += -L $(KEYSTONE_DIR)/build/llvm/lib -lkeystone \
@@ -86,6 +78,8 @@ ifdef USE_KEYSTONE  # set USE_KEYSTONE=1 to link with str->instr assembler
 	CFLAGS += -D USE_KEYSTONE
 	CXXFLAGS += -D USE_KEYSTONE
 endif
+
+CLDFLAGS += -lgtirb -lgtirb_proto -lprotobuf
 
 ifdef PROFILE  # set PROFILE=1 to enable gprof profiling
 	CFLAGS += -no-pie -pg

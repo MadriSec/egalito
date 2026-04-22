@@ -20,6 +20,7 @@ private:
     std::string fullPath;
     Module *module;
 private:
+    ElfMap *symbolElf;
     SymbolList *symbolList;
     SymbolList *dynamicSymbolList;
     RelocList *relocList;
@@ -43,10 +44,14 @@ public:
     RelocList *getRelocList() const { return relocList; }
     DwarfUnwindInfo *getDwarfInfo() const { return dwarf; }
 
+    void setSymbolList(SymbolList *list) { symbolList = list; }
+
     FunctionAliasMap *getAliasMap() const { return aliasMap; }
     void setAliasMap(FunctionAliasMap *aliasMap) { this->aliasMap = aliasMap; }
 private:
-    std::string getAlternativeSymbolFile() const;
+    void useAlternativeSymbolFile();
+    void useAlternativeSymbolFileMultiArch();
+    bool tryAlternativeSymbolFile(std::string symbolFile);
 };
 
 #if 0

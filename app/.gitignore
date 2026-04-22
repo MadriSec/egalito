@@ -10,6 +10,7 @@
 /etprofile
 /ettwocode
 /etorder
+/etgtirb
 /pyshell
 /libsandbox.so
 /libcoverage.so
@@ -19,4 +20,4 @@
 /build_riscv
 /.etshell_history
 /core
-
+/hello

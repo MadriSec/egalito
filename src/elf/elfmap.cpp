@@ -9,34 +9,125 @@
 #include "elfmap.h"
 #include "log/log.h"
 
-ElfMap::ElfMap() : map(nullptr), length(0), fd(-1) {
+#include <assert.h>
+#include <vector>
+
+class MapFromMMap : public ElfMap::MapBase {
+private:
+    // Memory map
+    void *m_map;
+
+    /** Size of memory map.
+    */
+    size_t m_length;
+
+    /** File descriptor associated with memory map.
+    */
+    int m_fd;
+
+    MapFromMMap(void *map, size_t len, int fd)
+        : m_map(map), m_length(len), m_fd(fd)
+    {}
+
+public:
+    ~MapFromMMap() {
+        assert(m_length > 0);
+        assert(m_fd > 0);
+        munmap(m_map, m_length);
+        close(m_fd);
+    }
+
+    void *raw_bytes() { return m_map; }
+    size_t get_length() { return m_length; }
+    int get_fd() { return m_fd; }
+
+    static std::unique_ptr<MapBase> makeMap(const char *filename) {
+        CLOG(1, "creating ElfMap for file [%s]", filename);
+        int fd = open(filename, O_RDONLY, 0);
+        if (fd < 0)
+            throw "can't open executable image\n";
+
+        // find the length of the file
+        size_t length = static_cast<size_t>(lseek(fd, 0, SEEK_END));
+        lseek(fd, 0, SEEK_SET);
+
+        // make a private copy of the file in memory
+        int prot = PROT_READ /*| PROT_WRITE*/;
+        void *map = mmap(NULL, length, prot, MAP_PRIVATE, fd, 0);
+        if (map == (void *)-1)
+            throw "can't mmap executable image\n";
+
+        return std::unique_ptr<MapBase>(new MapFromMMap(map, length, fd));
+    }
+};
+
+// This supports the constructor that can take a void* that ElfMap apparently
+// does not own (and hence will not delete.)
+// Note that the original code initialized length to 0 in this case. Not
+// sure what clients might think of that downstream, but this class continues
+// pattern.
+class MapFromUnownedVoidStar : public ElfMap::MapBase {
+private:
+    void *m_map;
+
+public:
+    MapFromUnownedVoidStar(void *map) : m_map(map) {}
+    ~MapFromUnownedVoidStar() { /* do nothing */ }
+    void *raw_bytes() { return m_map; }
+    size_t get_length() { return 0; }
+    int get_fd() { return -1; }
+};
+
+// This supports clients that have a psuedo-elf file already in present in
+// memory without a backing mmap'd file. Here ElfMap assumes ownership of
+// the memory image.
+class MapFromOwnedByteVector : public ElfMap::MapBase {
+private:
+    std::vector<std::byte> m_map;
+
+public:
+    MapFromOwnedByteVector(std::vector<std::byte> &&map)
+        : m_map(std::move(map))
+    {}
+    void *raw_bytes() { return static_cast<void *>(m_map.data()); }
+    size_t get_length() { return m_map.size(); }
+    int get_fd() { return -1; }
+};
+
+ElfMap::ElfMap() : map() {
 }
 
-ElfMap::ElfMap(pid_t pid) {
+ElfMap::ElfMap(pid_t pid) : map() {
     std::ostringstream stream;
     stream << "/proc/" << static_cast<int>(pid) << "/exe";
-    parseElf(stream.str().c_str());
+    map = MapFromMMap::makeMap(stream.str().c_str());
     setup();
 }
 
-ElfMap::ElfMap(const char *filename) {
-    parseElf(filename);
+ElfMap::ElfMap(const char *filename)
+    : map(MapFromMMap::makeMap(filename)) {
     setup();
 }
 
-ElfMap::ElfMap(void *self) : map(self), length(0), fd(-1) {
+ElfMap::ElfMap(void *self)
+    : map(std::unique_ptr<MapBase>(new MapFromUnownedVoidStar(self))) {
+    setup();
+}
+
+ElfMap::ElfMap(std::vector<std::byte> &&map)
+    : map(std::unique_ptr<MapBase>(new MapFromOwnedByteVector(std::move(map)))) {
     setup();
 }
 
 ElfMap::~ElfMap() {
-    if(length) munmap(map, length);
-    if(fd > 0) close(fd);
 }
 
 bool ElfMap::isElf(const char *filename) {
     try {
-        ElfMap elf;
-        elf.parseElf(filename);
+        // This wants to be able to run verifyElf() without
+        // calling setup().
+        auto elf = MapFromMMap::makeMap(filename);
+        verifyElf(elf);
     }
     catch(const char *error) {
         return false;
@@ -46,31 +137,14 @@ bool ElfMap::isElf(const char *filename) {
 }
 
 void ElfMap::setup() {
-    verifyElf();
+    verifyElf(map);
     makeSectionMap();
     makeSegmentList();
     makeVirtualAddresses();
 }
 
-void ElfMap::parseElf(const char *filename) {
-    CLOG(1, "creating ElfMap for file [%s]", filename);
-    fd = open(filename, O_RDONLY, 0);
-    if(fd < 0) throw "can't open executable image\n";
-
-    // find the length of the file
-    length = static_cast<size_t>(lseek(fd, 0, SEEK_END));
-    lseek(fd, 0, SEEK_SET);
-
-    // make a private copy of the file in memory
-    int prot = PROT_READ /*| PROT_WRITE*/;
-    map = mmap(NULL, length, prot, MAP_PRIVATE, fd, 0);
-    if(map == (void *)-1) throw "can't mmap executable image\n";
-
-    verifyElf();
-}
-
-void ElfMap::verifyElf() {
-    unsigned char *e_ident = ((ElfXX_Ehdr *)map)->e_ident;
+void ElfMap::verifyElf(const std::unique_ptr<ElfMap::MapBase> &map) {
+    unsigned char *e_ident = ((ElfXX_Ehdr *)map->raw_bytes())->e_ident;
     if(e_ident[EI_MAG0] != ELFMAG0
         || e_ident[EI_MAG1] != ELFMAG1
         || e_ident[EI_MAG2] != ELFMAG2
@@ -87,8 +161,8 @@ void ElfMap::verifyElf() {
 }
 
 void ElfMap::makeSectionMap() {
-    char *charmap = static_cast<char *>(map);
-    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map;
+    char *charmap = static_cast<char *>(map->raw_bytes());
+    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map->raw_bytes();
     if(sizeof(ElfXX_Shdr) != header->e_shentsize) {
         throw "header shentsize mismatch\n";
     }
@@ -111,8 +185,9 @@ void ElfMap::makeSectionMap() {
 }
 
 void ElfMap::makeSegmentList() {
-    char *charmap = static_cast<char *>(map);
-    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map;
+
+    char *charmap = static_cast<char *>(map->raw_bytes());
+    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map->raw_bytes();
     ElfXX_Phdr *pheader = (ElfXX_Phdr *)(charmap + header->e_phoff);
 
     for(int i = 0; i < header->e_phnum; i ++) {
@@ -125,7 +200,7 @@ void ElfMap::makeVirtualAddresses() {
     baseAddress = 0;
     copyBase = 0;
     interpreter = nullptr;
-    char *charmap = static_cast<char *>(map);
+    char *charmap = static_cast<char *>(map->raw_bytes());
 
     for(std::map<std::string, ElfSection *>::iterator it = sectionMap.begin(); it != sectionMap.end(); ++it) {
         auto section = it->second;
@@ -147,7 +222,7 @@ void ElfMap::makeVirtualAddresses() {
         return;
     }
 
-    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map;
+    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map->raw_bytes();
     ElfXX_Phdr *pheader = (ElfXX_Phdr *)(charmap + header->e_phoff);
 
     for(int i = 0; i < header->e_phnum; i ++) {
@@ -185,8 +260,8 @@ std::vector<void *> ElfMap::findSectionsByType(int type) const {
     std::vector<void *> sections;
     ElfXX_Shdr sCast;
 
-    char *charmap = static_cast<char *>(map);
-    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map;
+    char *charmap = static_cast<char *>(map->raw_bytes());
+    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map->raw_bytes();
     ElfXX_Shdr *sheader = (ElfXX_Shdr *)(charmap + header->e_shoff);
     for(int i = 0; i < header->e_shnum; i ++) {
         ElfXX_Shdr *s = &sheader[i];
@@ -202,8 +277,8 @@ std::vector<void *> ElfMap::findSectionsByType(int type) const {
 std::vector<void *> ElfMap::findSectionsByFlag(long flag) const {
     std::vector<void *> sections;
 
-    char *charmap = static_cast<char *>(map);
-    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map;
+    char *charmap = static_cast<char *>(map->raw_bytes());
+    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map->raw_bytes();
     ElfXX_Shdr *sheader = (ElfXX_Shdr *)(charmap + header->e_shoff);
     for(int i = 0; i < header->e_shnum; i ++) {
         ElfXX_Shdr *s = &sheader[i];
@@ -226,22 +301,22 @@ address_t ElfSection::convertVAToOffset(address_t va) {
 }
 
 size_t ElfMap::getEntryPoint() const {
-    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map;
+    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map->raw_bytes();
     return header->e_entry;
 }
 
 bool ElfMap::isExecutable() const {
-    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map;
+    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map->raw_bytes();
     return header->e_type == ET_EXEC;
 }
 
 bool ElfMap::isSharedLibrary() const {
-    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map;
+    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map->raw_bytes();
     return header->e_type == ET_DYN;
 }
 
 bool ElfMap::isObjectFile() const {
-    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map;
+    ElfXX_Ehdr *header = (ElfXX_Ehdr *)map->raw_bytes();
     return header->e_type == ET_REL;
 }
 

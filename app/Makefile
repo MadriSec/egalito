@@ -10,8 +10,7 @@ PYTHON_INC_DIR = /usr/include/python3.6m
 CFLAGS      += -g -I ../src/
 CXXFLAGS    += -g -I ../src/
 CLDFLAGS    += -L ../src/$(BUILDDIR) -legalito \
-	-Wl,-rpath=$(abspath ../src/$(BUILDDIR)) \
-	-Wl,-rpath=$(abspath ../dep/capstone/install/lib)
+	-Wl,-rpath=$(abspath ../src/$(BUILDDIR))
 
 ELF_SOURCES             = $(wildcard elf/*.cpp)
 SANDBOX_SOURCES         = $(wildcard sandbox/*.c sandbox/*.cpp)
@@ -27,6 +26,7 @@ ORDER_SOURCES           = $(wildcard order/*.cpp)
 PROFILE_SOURCES         = $(wildcard profile/*.cpp)
 PYTHON_SOURCES          = $(wildcard python/*.cpp)
 TWOCODE_SOURCES         = $(wildcard twocode/*.cpp)
+GTIRB_SOURCES           = $(wildcard gtirb_serializer/*.cpp)
 
 exe-filename = $(foreach s,$1,$(BUILDDIR)$(dir $s)$(basename $(notdir $s)))
 obj-filename = $(foreach s,$1,$(BUILDDIR)$(dir $s)$(basename $(notdir $s)).o)
@@ -58,17 +58,20 @@ ETTWOCODE_SOURCES = $(TWOCODE_SOURCES)
 ETTWOCODE_OBJECTS = $(call obj-filename,$(ETTWOCODE_SOURCES))
 ETORDER_SOURCES = $(ORDER_SOURCES)
 ETORDER_OBJECTS = $(call obj-filename,$(ETORDER_SOURCES))
+ETGTIRB_SOURCES = $(GTIRB_SOURCES)
+ETGTIRB_OBJECTS = $(call obj-filename,$(ETGTIRB_SOURCES))
 
 ALL_SOURCES = $(sort $(ETSHELL_SOURCES) $(ETSHELL2_SOURCES) $(ETOBJDUMP_SOURCES) \
     $(ETSANDBOX_SOURCES) $(LIBSANDBOX_SOURCES) \
     $(ETCOVERAGE_SOURCES) $(LIBCOVERAGE_SOURCES) \
-    $(ETHARDEN_SOURCES) $(LIBCET_SOURCES) \
+    $(ETHARDEN_SOURCES) $(LIBCET_SOURCES) $(ETGTIRB_SOURCES) \
     $(ETELF_SOURCES) $(ETPROFILE_SOURCES) $(ETTWOCODE_SOURCES) $(ETORDER_SOURCES))
 ALL_OBJECTS = $(call obj-filename,$(ALL_SOURCES))
 
 PYTHON_OBJECTS = $(call obj-filename,$(PYTHON_SOURCES))
 BUILDTREE = $(sort $(dir $(ALL_OBJECTS) $(PYTHON_OBJECTS)))
 
+ETGTIRB = $(BUILDDIR)etgtirb
 ETSHELL = $(BUILDDIR)etshell
 ETSHELL2 = $(BUILDDIR)etshell2
 ETOBJDUMP = $(BUILDDIR)etobjdump
@@ -86,32 +89,29 @@ SANDBOX_LIBRARY = $(BUILDDIR)libsandbox.so
 COVERAGE_LIBRARY = $(BUILDDIR)libcoverage.so
 CET_LIBRARY = $(BUILDDIR)libcet.so
 
-OUTPUTS = $(ETSHELL) $(ETSHELL2) $(ETOBJDUMP) $(ETSANDBOX) $(SANDBOX_LIBRARY) $(ETCOVERAGE) $(COVERAGE_LIBRARY) $(ETHARDEN) $(CET_LIBRARY) $(ETELF) $(ETPROFILE) $(ETTWOCODE) $(ETORDER)
+OUTPUTS = $(ETSHELL) $(ETGTIRB) $(ETSHELL2) $(ETOBJDUMP) $(ETSANDBOX) $(SANDBOX_LIBRARY) $(ETCOVERAGE) $(COVERAGE_LIBRARY) $(ETHARDEN) $(CET_LIBRARY) $(ETELF) $(ETPROFILE) $(ETTWOCODE) $(ETORDER)
 
 # Default target
 .PHONY: all
 all: app-all .symlinks
 	@true
 
-app-all: $(OUTPUTS) | rebuild-src
+app-all: $(OUTPUTS)
 
 python: $(BUILDTREE) $(PYTHON_BINDING) $(PYSHELL)
 	@ln -sf $(PYSHELL)
 
-ifeq ($(findstring clean,$(MAKECMDGOALS)),)
-Makefile: rebuild-src
-endif
-
 $(ALL_OBJECTS): | $(BUILDTREE)
-$(BUILDTREE): ../config/config.h
+$(BUILDTREE): ../src/config/config.h
 	@mkdir -p $@
 
-../config/config.h:
-	$(call short-make,../config)
+../src/config/config.h:
+	$(call short-make,../src/config)
 
 .symlinks: $(OUTPUTS)
 	@touch .symlinks
 	@echo "LN-S" $(OUTPUTS)
+	@ln -sf $(ETGTIRB)
 	@ln -sf $(ETSHELL)
 	@ln -sf $(ETSHELL2)
 	@ln -sf $(ETOBJDUMP)
@@ -127,8 +127,7 @@ $(BUILDTREE): ../config/config.h
 	@ln -sf $(ETORDER)
 	@ln -sf $(shell pwd)/../src/$(BUILDDIR)libegalito.so $(BUILDDIR)libegalito.so
 
-.PHONY: rebuild-src
-rebuild-src:
+../src/$(BUILDDIR)libegalito.so:
 	$(call short-make,../src)
 
 # Dependencies
@@ -187,6 +186,10 @@ $(ETTWOCODE): ../src/$(BUILDDIR)libegalito.so
 $(ETORDER): $(ETORDER_OBJECTS)
 	$(SHORT_LINK) $(CXXFLAGS) -o $@ $^ $(CLDFLAGS) -Wl,-rpath=$(abspath ../src)
 $(ETORDER): ../src/$(BUILDDIR)libegalito.so
+
+$(ETGTIRB): $(ETGTIRB_OBJECTS)
+	$(SHORT_LINK) $(CXXFLAGS) -o $@ $^ $(CLDFLAGS) -Wl,-rpath=$(abspath ../src)
+$(ETGTIRB): ../src/$(BUILDDIR)libegalito.so
 
 $(PYSHELL): $(PYTHON_BINDING) python/shell.py
 	cp python/shell.py $(BUILDDIR)pyshell

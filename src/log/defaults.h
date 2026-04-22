@@ -16,6 +16,7 @@
 #define D_dwarf         -1
 #define D_elf           -1
 #define D_generate      -1
+#define D_gtirb         -1
 #define D_instr         -1
 #define D_load          -1
 #define D_log           -1
@@ -45,6 +46,7 @@
 #define D_dwarf         9
 #define D_elf           9
 #define D_generate      9
+#define D_gtirb         9
 #define D_instr         9
 #define D_load          9
 #define D_log           0

@@ -50,6 +50,12 @@ public:
     */
     void parseRecursiveDependencies();
 
+    /** Import IR from a GTIRB file.
+        Tests to see if the file can be imported as a GTIRB file.
+        Returns false if not, otherwise performs the import.
+     */
+    bool importGtirb(const std::string &filename);
+
     /** Returns the root Chunk, Program. */
     Program *getProgram() const { return setup.getConductor()->getProgram(); }
 

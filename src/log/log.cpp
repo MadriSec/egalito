@@ -24,13 +24,15 @@ int _log_printf(const char *format, ...) {
     int ret = 0;
     if(LogStream::getStream() == DEFAULT_STREAM) {
         va_start(args, format);
-        ret = vfprintf(stdout, format, args);
+        // This function must take a variable format string. CWE-134 cannot be addressed here.
+        ret = vfprintf(stdout, format, args); /* Flawfinder: ignore */
         va_end(args);
     }
     else {
         char buffer[4096];
         va_start(args, format);
-        ret = vsnprintf(buffer, sizeof buffer, format, args);
+        // This function must take a variable format string. CWE-134 cannot be addressed here.
+        ret = vsnprintf(buffer, sizeof buffer, format, args); /* Flawfinder: ignore */
         va_end(args);
 
         (*LogStream::getStream()) << buffer;
@@ -50,12 +52,14 @@ int _log_printf_n(const char *format, ...) {
         buffer[len] = 0;
 
         va_start(args, format);
-        ret = vfprintf(stdout, buffer, args);
+        // This function must take a variable format string. CWE-134 cannot be addressed here.
+        ret = vfprintf(stdout, buffer, args); /* Flawfinder: ignore */
         va_end(args);
     }
     else {
         va_start(args, format);
-        ret = vsnprintf(buffer, sizeof buffer, format, args);
+        // This function must take a variable format string. CWE-134 cannot be addressed here.
+        ret = vsnprintf(buffer, sizeof buffer, format, args); /* Flawfinder: ignore */
         va_end(args);
 
         (*LogStream::getStream()) << buffer << '\n';

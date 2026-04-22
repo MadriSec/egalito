@@ -1,7 +1,6 @@
 #include <cassert>
 #include <cstring>
-#include <climits>  // for PATH_MAX
-#include <unistd.h>  // for readlink
+#include <experimental/filesystem>
 #include "config.h"
 #include "setup.h"
 #include "conductor.h"
@@ -21,6 +20,8 @@
 #include "log/log.h"
 #include "log/temp.h"
 
+#define PER_MODULE_SIZE 0x2000000
+
 address_t runEgalito(ElfMap *elf, ElfMap *egalito);
 
 ConductorSetup *egalito_conductor_setup __attribute__((weak));
@@ -30,11 +31,9 @@ void ConductorSetup::parseEgalito(bool fromArchive) {
 #ifdef EGALITO_PATH
     const char *path = EGALITO_PATH;
 #else
-    const char *name = "/libegalito.so";
-    char path[PATH_MAX];
-    auto sz = readlink("/proc/self/exe", path, PATH_MAX);
-    path[sz] = 0;
-    std::strcpy(std::strrchr(path, '/'), name);
+    auto fs_path = std::experimental::filesystem::read_symlink("/proc/self/exe");
+    fs_path = fs_path.parent_path() / "libegalito.so";
+    auto path = fs_path.c_str();
 #endif
     LOG(1, "egalito is at " << path);
 
@@ -146,6 +145,23 @@ void ConductorSetup::parseEgalitoArchive(const char *archive) {
     conductor->resolveVTables();
 }
 
+void ConductorSetup::parseGtirb(GtirbDeserializer &gtirb_ds,
+    bool withSharedLibs) {
+
+    this->conductor = new Conductor();
+    this->elf = nullptr;
+    this->egalito = nullptr;
+
+    conductor->parseGtirb(gtirb_ds);
+
+    if(withSharedLibs) {
+        conductor->parseLibraries();
+    }
+
+    // TODO: Do we need the calls to resolveXYZ here?
+    conductor->resolveData(withSharedLibs);
+}
+
 void ConductorSetup::setBaseAddresses() {
     unsigned long i = 0;
     for(auto module : CIter::modules(conductor->getProgram())) {
@@ -153,11 +169,7 @@ void ConductorSetup::setBaseAddresses() {
             ? module->getElfSpace()->getElfMap() : nullptr;
         // this address has to be low enough to express negative offset in
         // jump table slots (to represent an index)
-#if 0 // use 0x1X000000 for module addrs (X starts at 0)
-        if(setBaseAddress(module, elfMap, 0x10000000 + i*0x1000000)) {
-#else // use 0x0X000000 for module addrs, for 32MB each (X starts at 1)
-        if(setBaseAddress(module, elfMap, (i+1)*0x2000000)) {
-#endif
+        if(setBaseAddress(module, elfMap, 0x10000000 + i*PER_MODULE_SIZE)) {
             i ++;
         }
     }
@@ -234,12 +246,16 @@ void ConductorSetup::ensureBaseAddresses() {
 
     for(auto module : CIter::modules(conductor->getProgram())) {
         if(module->getBaseAddress() != 0) continue;
-        maxAddress += 0x100000000;
+        maxAddress += PER_MODULE_SIZE;
 
         auto elfMap = module->getElfSpace()
             ? module->getElfSpace()->getElfMap() : nullptr;
 
         setBaseAddress(module, elfMap, maxAddress);
+
+        for(auto region : CIter::regions(module)) {
+            region->updateAddressFor(elfMap->getBaseAddress());
+        }
     }
 }
 

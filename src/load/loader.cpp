@@ -45,6 +45,8 @@
 #include "log/temp.h"
 #include "log/log.h"
 
+#include "gtirb/gtirb_deserializer.h"
+
 extern address_t egalito_entry;
 extern const char *egalito_initial_stack;
 extern "C" void _start2(void);
@@ -68,9 +70,17 @@ bool EgalitoLoader::parse(const char *filename) {
             fromArchive = false;
         }
         else {
-            LOG(1, "parsing archive [" << filename << "]");
-            setup->parseEgalitoArchive(filename);
-            fromArchive = true;
+            // Try to load the file as if it were GTIRB.
+            GtirbDeserializer gtirb_ds(filename);
+            if(gtirb_ds.preParse()) {
+                LOG(1, "parseing gtirb [" << filename << "]");
+                setup->parseGtirb(gtirb_ds);
+            }
+            else {
+                LOG(1, "parsing archive [" << filename << "]");
+                setup->parseEgalitoArchive(filename);
+                fromArchive = true;
+            }
         }
     }
     catch(const char *message) {

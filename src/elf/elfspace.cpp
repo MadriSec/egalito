@@ -1,11 +1,11 @@
 #include <stdlib.h>  // for realpath() [ARM]
 #include <libgen.h>  // for dirname() [ARM]
 #include <limits.h>  // for PATH_MAX [ARM]
-#include <unistd.h>  // for access()
 #include <string.h>  // for strdup()
 #include <iomanip>
 #include <sstream>
 #include <elf.h>
+#include <fstream>
 #include "elfspace.h"
 #include "elfmap.h"
 #include "sharedlib.h"
@@ -24,7 +24,7 @@
 ElfSpace::ElfSpace(ElfMap *elf, const std::string &name,
     const std::string &fullPath) : elf(elf), dwarf(nullptr),
     name(name), fullPath(fullPath), module(nullptr),
-    symbolList(nullptr), dynamicSymbolList(nullptr),
+    symbolElf(nullptr), symbolList(nullptr), dynamicSymbolList(nullptr),
     relocList(nullptr), aliasMap(nullptr) {
 
 }
@@ -34,6 +34,7 @@ ElfSpace::~ElfSpace() {
     delete dwarf;
     delete module;
     delete symbolList;
+    delete symbolElf;
     delete dynamicSymbolList;
     delete relocList;
     delete aliasMap;
@@ -41,10 +42,10 @@ ElfSpace::~ElfSpace() {
 
 void ElfSpace::findSymbolsAndRelocs() {
     if(fullPath.size() > 0) {
-        auto symbolFile = getAlternativeSymbolFile();
-        this->symbolList = SymbolList::buildSymbolList(elf, symbolFile);
+        useAlternativeSymbolFile();
     }
-    else {
+
+    if (!symbolList) {
         this->symbolList = SymbolList::buildSymbolList(elf);
     }
 
@@ -61,7 +62,7 @@ void ElfSpace::findSymbolsAndRelocs() {
         = RelocList::buildRelocList(elf, symbolList, dynamicSymbolList);
 }
 
-std::string ElfSpace::getAlternativeSymbolFile() const {
+void ElfSpace::useAlternativeSymbolFile() {
     auto buildIdSection = elf->findSection(".note.gnu.build-id");
     if(buildIdSection) {
         auto buildIdHeader = buildIdSection->getHeader();
@@ -83,7 +84,7 @@ std::string ElfSpace::getAlternativeSymbolFile() const {
                 }
                 symbolFile << ".debug";
 
-                if(access(symbolFile.str().c_str(), F_OK) == 0) return symbolFile.str();
+                if(tryAlternativeSymbolFile(symbolFile.str())) return;
             }
 
             size_t align = ~((1 << buildIdHeader->sh_addralign) - 1);
@@ -109,9 +110,48 @@ std::string ElfSpace::getAlternativeSymbolFile() const {
         }
 
         free(realPath);
-        if(access(symbolFile.str().c_str(), F_OK) == 0) return symbolFile.str();
+        if(tryAlternativeSymbolFile(symbolFile.str())) return;
 
     }
 
-    return "";
+    useAlternativeSymbolFileMultiArch();
+}
+
+void ElfSpace::useAlternativeSymbolFileMultiArch() {
+    auto debuglink = elf->findSection(".gnu_debuglink");
+    if(!debuglink) {
+        return;
+    }
+    auto symbol_name = elf->getSectionReadPtr<char *>(debuglink);
+
+    std::ifstream march_file("/etc/ld.so.conf.d/x86_64-linux-gnu.conf");
+    if (!march_file.good()) {
+        march_file.close();
+        return;
+    }
+    std::string line;
+    while(std::getline(march_file, line)) {
+        // Ignore comments
+        auto comment_start = line.find("#");
+        line = line.substr(0, comment_start);
+
+        std::string tstSymbolFile = "/usr/lib/debug" + line + "/" + symbol_name;
+        if(tryAlternativeSymbolFile(tstSymbolFile)) {
+            break;
+        }
+    }
+
+    march_file.close();
+}
+
+bool ElfSpace::tryAlternativeSymbolFile(std::string symbolFile) {
+    try {
+        this->symbolElf = new ElfMap(symbolFile.c_str());
+    }
+    catch (...) {
+        this->symbolElf = nullptr;
+        return false;
+    }
+    this->symbolList = SymbolList::buildSymbolList(this->symbolElf);
+    return true;
 }

@@ -25,20 +25,20 @@ static void write_string(int stream, const char *message) {
 
     size_t length = 0;
     while(message[length]) length ++;
-    
+
     (void)write(stream, message, length);
 }
 
 static void write_hex(int stream, unsigned long number) {
     char buffer[2+8+8];
     int i = 2+8+8;
-    
+
     unsigned long shift = 0;
     for(;;) {
         unsigned long digit = (number >> shift) & 0xf;
         if(digit <= 9) buffer[--i] = digit + '0';
         else buffer[--i] = (digit-10) + 'a';
-        
+
         shift += 4;
         if(shift == 32 && (number >> shift) == 0) break;
         if(shift == 64) break;
@@ -71,13 +71,13 @@ static void decimal_to_string(unsigned long number, char *s) {
 static void hex_to_string(unsigned long number, char *s) {
     char buffer[2+8+8+1] = {0};
     int i = 2+8+8;
-    
+
     unsigned long shift = 0;
     for(;;) {
         unsigned long digit = (number >> shift) & 0xf;
         if(digit <= 9) buffer[--i] = digit + '0';
         else buffer[--i] = (digit-10) + 'a';
-        
+
         shift += 4;
         if(shift == 32 && (number >> shift) == 0) break;
         if(shift == 64) break;
@@ -85,27 +85,30 @@ static void hex_to_string(unsigned long number, char *s) {
     _strcpy(s, buffer + i);
 }
 
-int NAME(printf) (const char *format, ...) {
+// This function must take a variable format string. CWE-134 cannot be addressed here.
+int NAME(printf) (const char *format, ...) { /* Flawfinder: ignore */
     va_list args;
     va_start(args, format);
 
-    int r = NAME(vfprintf) (stdout, format, args);
+    int r = NAME(vfprintf) (stdout, format, args); /* Flawfinder: ignore */
 
     va_end(args);
     return r;
 }
 
-int NAME(fprintf) (int stream, const char *format, ...) {
+// This function must take a variable format string. CWE-134 cannot be addressed here.
+int NAME(fprintf) (int stream, const char *format, ...) { /* Flawfinder: ignore */
     va_list args;
     va_start(args, format);
 
-    int r = NAME(vfprintf) (stream, format, args);
+    int r = NAME(vfprintf) (stream, format, args); /* Flawfinder: ignore */
 
     va_end(args);
     return r;
 }
 
-int NAME(vfprintf) (int stream, const char *format, va_list args) {
+// This function must take a variable format string. CWE-134 cannot be addressed here.
+int NAME(vfprintf) (int stream, const char *format, va_list args) { /* Flawfinder: ignore */
     for(const char *begin = format; *begin; ) {
         if(*begin == '%') {
             begin ++;
@@ -149,35 +152,38 @@ int NAME(vfprintf) (int stream, const char *format, va_list args) {
             const char *p = begin;
             while(*p && *p != '%') p ++;
             (void)write(stream, begin, p - begin);
-            
+
             begin = p;
         }
     }
-    
+
     return 0;
 }
 
-int NAME(sprintf) (char *s, const char *format, ...) {
+// By definition, sprintf cannot require a size input. CWE-120 cannot be addressed here.
+int NAME(sprintf) (char *s, const char *format, ...) { /* Flawfinder: ignore */
     va_list args;
     va_start(args, format);
 
-    int r = NAME(vsnprintf) (s, (size_t)-1, format, args);
+    int r = NAME(vsnprintf) (s, (size_t)-1, format, args); /* Flawfinder: ignore */
 
     va_end(args);
     return r;
 }
 
-int NAME(snprintf) (char *s, size_t size, const char *format, ...) {
+// This function must take a variable format string. CWE-134 cannot be addressed here.
+int NAME(snprintf) (char *s, size_t size, const char *format, ...) { /* Flawfinder: ignore */
     va_list args;
     va_start(args, format);
 
-    int r = NAME(vsnprintf) (s, size, format, args);
+    int r = NAME(vsnprintf) (s, size, format, args); /* Flawfinder: ignore */
 
     va_end(args);
     return r;
 }
 
-int NAME(vsnprintf) (char *s, size_t size, const char *format, va_list args) {
+// This function must take a variable format string. CWE-134 cannot be addressed here.
+int NAME(vsnprintf) (char *s, size_t size, const char *format, va_list args) { /* Flawfinder: ignore */
     for(const char *begin = format; *begin; ) {
         if(*begin == '%') {
             begin++;
@@ -228,11 +234,11 @@ int NAME(vsnprintf) (char *s, size_t size, const char *format, va_list args) {
         else {
             const char *p = begin;
             while(*p && *p != '%') *s++ = *p++;
-            
+
             begin = p;
         }
     }
-    
+
     return 0;
 }
 

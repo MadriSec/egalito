@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <elf.h>
 #include <glob.h>
+#include <unistd.h>
 
 #include "elfdynamic.h"
 #include "elfmap.h"
@@ -29,12 +30,28 @@ void ElfDynamic::parse(ElfMap *elf, Library *library) {
             dependencyList.push_back(std::make_pair(name, library));
         }
         else if(type == DT_RPATH || type == DT_RUNPATH) {
-            this->rpath = strtab + value;
-            LOG(2, "    rpath [" << rpath << "]");
-        }
+	    auto rpath = strtab + value;
+	    auto bin = library->getResolvedPath();
+	    auto pwd = bin.substr(0, bin.rfind("/"));
+
+	    std::string resolvedRpath(rpath);
+
+	    auto rpos = std::string::npos;
+	    while((rpos = resolvedRpath.find("$ORIGIN")) != std::string::npos) {
+		resolvedRpath.replace(rpos, 7, pwd);
+	    }
+
+	    this->rpath = std::string(resolvedRpath);
+            LOG(2, "    rpath [" << rpath
+		<< "], resolved to:  " << resolvedRpath);
+       }
     }
 
     resolveLibraries();
+}
+
+void ElfDynamic::setRPath(const std::string &newRPath) {
+    this->rpath = newRPath;
 }
 
 void ElfDynamic::addDependency(Library *library, std::string soname) {
@@ -45,7 +62,7 @@ void ElfDynamic::addDependency(Library *library, std::string soname) {
 std::string ElfDynamic::findSharedObject(std::string name) {
     setupSearchPath();
 
-    for(auto path : searchPath) {
+    for(auto path : libraryList->getSearchPaths()) {
         std::string fullPath = path + "/" + name;
         std::ifstream file(fullPath);
         if(file.is_open() && isValidElf(file)) {
@@ -70,6 +87,7 @@ static void split(const std::string &s, char delim, Out result) {
 
 void ElfDynamic::setupSearchPath() {
     // make idempotent
+    auto searchPath = libraryList->getSearchPaths();
     if(searchPath.size()) return;
 
     const char *egalito_library_path = getenv("EGALITO_LIBRARY_PATH");
@@ -77,7 +95,7 @@ void ElfDynamic::setupSearchPath() {
         split(egalito_library_path, ':', std::back_inserter(searchPath));
     }
 
-    if(rpath) {
+    if(!rpath.empty()) {
         split(rpath, ':', std::back_inserter(searchPath));
     }
 
@@ -89,17 +107,48 @@ void ElfDynamic::setupSearchPath() {
     int musl = isFeatureEnabled("EGALITO_MUSL");
 
     auto cfs = ConductorFilesystem::getInstance();
+
+    char *cwd = get_current_dir_name();
+    std::string currentPath(cwd);
+    int count=0;
+    int index=-1;
+    std::string parentPath;
+    for(int i=currentPath.length()-1; i>=0; i--)
+    {
+        if(currentPath[i]=='/')
+            count++;
+        if(count==2)
+        {
+            index=i;
+            break;
+        }
+    }
+    if(index != -1)
+    {
+        parentPath=currentPath.substr(0,index);
+    }
+
+    const char *user_library_path = getenv("USER_LIBRARY_PATH");
+    if(user_library_path) {
+        split(user_library_path, ':', std::back_inserter(searchPath));
+    }
+
+
+
     if(musl) {
         parseMuslLdConfig(cfs->transform("/etc/ld-musl-x86_64.path"), searchPath);
     }
     else {
         parseLdConfig(cfs->transform("/etc/ld.so.conf"), searchPath);
     }
-    searchPath.push_back(cfs->transform("/lib"));
-    searchPath.push_back(cfs->transform("/usr/lib"));
-    searchPath.push_back(cfs->transform("/lib64"));
-    searchPath.push_back(cfs->transform("/usr/lib64"));
-    searchPath.push_back(cfs->transform("/usr/local/musl/lib"));
+    for (auto sPath : searchPath) {
+        libraryList->addSearchPath(sPath);
+    }
+    libraryList->addSearchPath(cfs->transform("/lib"));
+    libraryList->addSearchPath(cfs->transform("/usr/lib"));
+    libraryList->addSearchPath(cfs->transform("/lib64"));
+    libraryList->addSearchPath(cfs->transform("/usr/lib64"));
+    libraryList->addSearchPath(cfs->transform("/usr/local/musl/lib"));
 }
 
 std::vector<std::string> ElfDynamic::doGlob(std::string pattern) {
@@ -194,12 +243,15 @@ void ElfDynamic::resolveLibraries() {
 void ElfDynamic::processLibrary(const std::string &fullPath,
     const std::string &filename, Library *depend) {
 
+   int isLdEnabled = isFeatureEnabled("ENABLE_LD");
+
     if(filename == "ld-linux-x86-64.so.2"
         || filename == "ld-linux-aarch64.so.1"
         || filename == "ld-linux-riscv64-lp64d.so.1") {
 
         LOG(2, "    skipping processing of ld.so for now");
-        return;
+	if (!isLdEnabled)
+		return;
     }
     if(!isFeatureEnabled("EGALITO_USE_DISASM")) {
         if(filename == "libcapstone.so.4" || filename == "libcapstone.so.3") {

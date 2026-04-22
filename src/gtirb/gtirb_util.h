@@ -1,0 +1,57 @@
+#ifndef GTIRB_UTIL_H
+#define GTIRB_UTIL_H
+
+#include "gtirb/gtirb.hpp"
+
+#include <map>
+
+// AuxData schema that's not sanctioned yet
+namespace gtirb {
+namespace schema {
+
+/**
+ * @brief Auxiliary data for extra symbol info.
+ */
+struct ElfSymbolInfo {
+    static constexpr const char* Name = "elfSymbolInfo";
+    typedef std::map<gtirb::UUID,
+        std::tuple<uint64_t, std::string, std::string, std::string, uint64_t>>
+        Type;
+};
+
+/**
+ * @brief Auxiliary data covering ELF section properties.
+ * */
+struct SectionProperties {
+    static constexpr const char* Name = "sectionProperties";
+    typedef std::map<gtirb::UUID, std::tuple<uint64_t, uint64_t>> Type;
+};
+
+/**
+ * @brief Auxiliary data listing library dependence.
+ */
+struct Libraries {
+    static constexpr const char* Name = "libraries";
+    typedef std::vector<std::string> Type;
+};
+
+/// \brief Auxiliary data that includes names of necessary library paths.
+struct LibraryPaths {
+    static constexpr const char* Name = "libraryPaths";
+    typedef std::vector<std::string> Type;
+};
+
+/// \brief Auxiliary data describing a binary's type.
+struct BinaryType {
+    static constexpr const char* Name = "binaryType";
+    typedef std::vector<std::string> Type;
+};
+}
+}
+
+/**
+ * @brief Register AuxData used in the Egalito/GTIRB integration
+ */
+void register_gtirb_auxdata();
+
+#endif  // GTIRB_UTIL_H

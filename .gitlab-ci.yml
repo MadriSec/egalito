@@ -1,0 +1,296 @@
+include:
+- template: Security/SAST.gitlab-ci.yml
+
+
+variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+    GIT_STRATEGY: clone
+    DEBIAN10_IMAGE: registry.gitlab.com/madrisec/egalito/test/debian-buster:gtirb
+    DEBIAN12_IMAGE: registry.gitlab.com/madrisec/egalito/test/debian-bookworm:gtirb
+    UBUNTU20_IMAGE: registry.gitlab.com/madrisec/egalito/test/ubuntu-20.04:gtirb
+    # AARCH64_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/aarch64
+    # ARM_IMAGE: $DOCKER_REGISTRY/metis/egalito/egalito/egalito/arm
+    DOCKER_DIR: ./test/docker
+    GTIRB_RELEASE: stable
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE != "merge_request_event"'
+
+default:
+  before_script:
+    - bash test/script/get-gtirb.sh $GTIRB_RELEASE
+
+stages:
+  - update-docker
+  - check-format
+  - build
+  - test
+  - sast
+  - package
+  - test-package
+
+.reset_timestamps: &RESET_TIMESTAMPS
+  - echo -e "\e[0Ksection_start:`date +%s`:set_timestamps[collapsed=true]\r\e[0KSetting modification timestamps"
+  - bash .ci/reset-modification-timestamps.sh
+  - echo -e "\e[0Ksection_end:`date +%s`:set_timestamps\r\e[0K"
+
+
+.docker-template:
+  stage: update-docker
+  image: docker
+  before_script: []
+  services:
+    - docker:dind
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build --build-arg "BASE_IMAGE=$DOCKER_IMAGE_BASE" --network=host --target=test --tag "$DOCKER_IMAGE_TAG" -f "test/docker/Dockerfile_x86_64" test/docker/
+    - docker push $DOCKER_IMAGE_TAG
+  rules:
+    # Only run for merges with docker changes
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - test/docker/*
+      when: always
+  variables:
+    DOCKER_BUILDKIT: 1
+
+update-docker-ubuntu-20:
+  extends: .docker-template
+  variables:
+    DOCKER_IMAGE_TAG: $UBUNTU20_IMAGE
+    DOCKER_IMAGE_BASE: ubuntu:20.04
+
+update-docker-debian-10:
+  extends: .docker-template
+  variables:
+    DOCKER_IMAGE_TAG: $DEBIAN10_IMAGE
+    DOCKER_IMAGE_BASE: debian:buster
+  # The debian image has to install from source, which takes extra time.
+  timeout: 2h
+
+update-docker-debian-12:
+  extends: .docker-template
+  variables:
+    DOCKER_IMAGE_TAG: $DEBIAN12_IMAGE
+    DOCKER_IMAGE_BASE: debian:bookworm
+  # The debian image has to install from source, which takes extra time.
+  timeout: 2h  
+
+check-format:
+  stage: check-format
+  image: $UBUNTU20_IMAGE
+  before_script: []
+  needs: []
+  script:
+    - pre-commit install-hooks
+    - pre-commit run --all-files --show-diff-on-failure
+    # helper message for new committers
+    - |+
+      cat <<EOF
+      ================================================================================
+      If this stage fails, the formatting of your changes may be incorrect.
+      To automatically format your files, install pre-commit:
+          pip3 install pre-commit
+          pre-commit install
+      pre-commit will now automatically format any files before commit.
+      To fix any misformatted files, run:
+          pre-commit run --all-files
+      And then commit any changes.
+      More information regarding pre-commit can be found at https://pre-commit.com.
+
+      NOTE FOR PROJECTS WITH C/C++ CODE:
+      pre-commit will by default use the correct version of every formatting tool
+      EXCEPT FOR clang-format. You need to ensure the version of clang-format you
+      use is EXACTLY version 6.0.0. This is available in Ubuntu 18 by default.
+      ================================================================================
+      EOF
+
+coverage:
+  stage: build
+  artifacts:
+    paths:
+      - coverage/
+  image: $UBUNTU20_IMAGE
+  cache:
+    key: "$CI_COMMIT_REF_SLUG-$CI_JOB_NAME"
+    paths:
+      - src/build_x86_64/*/*.*
+  script:
+    # Make will rebuild a file if the source is newer than the target
+    # Roll back timestamps to last-modified date of each file in git
+    # (Makes gitlab's cache usable)
+    - *RESET_TIMESTAMPS
+    - cd dep && make all && cd -
+    - cd src && ENABLE_COVERAGE=1 make || ENABLE_COVERAGE=1 make -j 8 && cd -
+    - make all -j 8
+    - lcov -c -i -d src/build_x86_64 -o base.info
+    - cd test/script && make test ||  true && cd -
+    - cd test/codegen && make test || true && cd -
+    - cd test/unit && ./runner || true && cd -
+    - lcov -c -d src/build_x86_64 -o test.info
+    - lcov -a base.info -a test.info -o total.info
+    - lcov --remove total.info "/usr/*" -o egalito.info
+    - mkdir coverage
+    - genhtml -o coverage egalito.info
+
+
+.build-template:
+  stage: build
+  artifacts:
+    paths:
+      - app/
+      - src/
+      - test/
+      - dep/
+      - runtime/
+  cache:
+    key: "$CI_COMMIT_REF_SLUG-$CI_JOB_NAME"
+    paths:
+      - src/build_x86_64/*/*.*
+      - config/config.h
+  # fill in the build image
+  script:
+    # Make will rebuild a file if the source is newer than the target
+    # Roll back timestamps to last-modified date of each file in git
+    # (Makes gitlab's cache usable)
+    - *RESET_TIMESTAMPS
+    - make -j $(nproc)
+
+build-ubuntu20:
+  extends: .build-template
+  image: $UBUNTU20_IMAGE
+
+build-ubuntu20-unstable:
+  extends: .build-template
+  image: $UBUNTU20_IMAGE
+  before_script:
+    - bash test/script/get-gtirb.sh unstable
+
+build-debian-10:
+  extends: .build-template
+  image: $DEBIAN10_IMAGE
+
+build-debian-12:
+  extends: .build-template
+  image: $DEBIAN12_IMAGE
+
+.test-template: &test-template
+  variables:
+    GIT_STRATEGY: none
+  stage: test
+  script:
+    - cd test/codegen && make test && cd -
+#    - cd test/unit && ./runner && cd -
+#    - cd test/script && make test && cd -
+
+tests-ubuntu20:
+  extends: .test-template
+  needs: [build-ubuntu20]
+  image: $UBUNTU20_IMAGE
+
+tests-ubuntu20-unstable:
+  extends: .test-template
+  needs: [build-ubuntu20-unstable]
+  image: $UBUNTU20_IMAGE
+  variables:
+    GTIRB_RELEASE: unstable
+
+gtirb-test-ubuntu20:
+  extends: .test-template
+  needs: [build-ubuntu20]
+  image: $UBUNTU20_IMAGE
+  stage: test
+  script:
+    - test/gtirb/run_test.sh
+
+tests-debian-10:
+  extends: .test-template
+  needs: [build-debian-10]
+  image: $DEBIAN10_IMAGE
+
+tests-debian-12:
+  extends: .test-template
+  needs: [build-debian-12]
+  image: $DEBIAN12_IMAGE
+
+.package-ubuntu20-template:
+  image: $UBUNTU20_IMAGE
+  stage: package
+  artifacts:
+    paths:    
+      - '*.deb'
+  script:
+    - apt update && apt install -y cmake
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=lib -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh) -D CPACK_GTIRB_RELEASE=$GTIRB_RELEASE
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=bin -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh) -D CPACK_GTIRB_RELEASE=$GTIRB_RELEASE
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=dev -D CPACK_GTIRB_VERSION=$(.ci/gtirb-version.sh) -D CPACK_GTIRB_RELEASE=$GTIRB_RELEASE
+    - cpack -G DEB -D CPACK_EGALITO_PACKAGE=static 
+
+package-ubuntu20:
+  extends: .package-ubuntu20-template
+  needs: [build-ubuntu20]
+
+package-ubuntu20-unstable:
+  extends: .package-ubuntu20-template
+  needs: [build-ubuntu20-unstable]
+  variables:
+    GTIRB_RELEASE: unstable
+  
+.test-package-template:
+  stage: test-package
+  image: $UBUNTU20_IMAGE
+  script:
+    - for file in libegalito*.deb; do apt-get install -y ./${file}; done
+    - for file in egalito*.deb; do apt-get install -y ./${file}; done
+    - git clean -fdx || true
+    - git submodule foreach 'git clean -fdx' || true
+    - cd test/example && make -j && cd -
+    - etelf -m test/example/hellocpp hello
+    - ./hello
+
+test-package-ubuntu20:
+  extends: .test-package-template
+  needs: [package-ubuntu20]
+
+test-package-ubuntu20-unstable:
+  extends: .test-package-template
+  needs: [package-ubuntu20-unstable]
+  variables:
+    GTIRB_RELEASE: unstable
+  
+sast:
+  stage: sast
+  needs: []
+  variables:
+    SAST_EXCLUDED_PATHS: "dep/keystone, dep/distorm3, dep/ifunc, test"
+  before_script:
+    # Convert github SSH submodules to HTTPS to circumvent the need for a GitHub SSH key
+    - echo -e '[url "https://github.com/"]\n    insteadOf = "git@github.com:"' >> ~/.gitconfig
+    - git submodule update --init --recursive
+    # Convert non-unicode files
+    - pip install cvt2utf
+    - cvt2utf cvt src/ -i c cpp -x txt
+    - cvt2utf cvt dep/ -i c cpp -x txt
+  after_script:
+    - python3 .ci/sast_report.py
+  cache: []
+  artifacts:
+    paths:
+      - gl-sast-report.json
+      - sast-report.html
+    expire_in: '1 day'
+
+pages:
+  image: $UBUNTU20_IMAGE
+  before_script: []
+  only: [main]
+  script:
+    - apt update && apt install -y doxygen clang graphviz
+    - doxygen Doxyfile
+    - mv doc_html/html public
+  artifacts:
+    paths:
+      - public
