@@ -316,11 +316,6 @@ Link *PerfectLinkResolver::resolveInternally(Reloc *reloc, Module *module,
             // value should be S
             addr = symbol->getAddress();
         }
-<<<<<<< HEAD
-
-=======
-        
->>>>>>> stevens/egalito-upgrade
         else if(type >= R_X86_64_NUM) {
            // some ELFs with debug symbols use relocations of type 82 etc
             LOG(1, "Handing unrecognized relocations ");

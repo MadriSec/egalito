@@ -80,20 +80,11 @@ void SyspartPass::visit(Function *func)
             call->setSemantic(callSem);
             m2.append(call);
             m1.insertAfter(previous_sibling, block2);
-<<<<<<< HEAD
-
-=======
-            
->>>>>>> stevens/egalito-upgrade
             for(auto bl : non_loop_parents)
             {
 
                 auto last =  (Instruction*)bl->getChildren()->genericGetLast();
-<<<<<<< HEAD
                 if(auto cfi = dynamic_cast<ControlFlowInstruction *>(last->getSemantic()))
-=======
-                if(auto cfi = dynamic_cast<ControlFlowInstruction *>(last->getSemantic())) 
->>>>>>> stevens/egalito-upgrade
                 {
                     auto sem1 = last->getSemantic();
                     if((cfi->getMnemonic())[0] == 'j')
@@ -106,7 +97,3 @@ void SyspartPass::visit(Function *func)
         }
     }
 }
-<<<<<<< HEAD
-=======
-
->>>>>>> stevens/egalito-upgrade

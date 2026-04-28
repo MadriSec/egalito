@@ -392,11 +392,7 @@ private:
     void fillLea(UDState *state, AssemblyPtr assembly);
     void fillMov(UDState *state, AssemblyPtr assembly);
     void fillCMov(UDState *state, AssemblyPtr assembly);
-<<<<<<< HEAD
-    void fillX86Ret(UDState *state, AssemblyPtr assembly);
-=======
     void fillX86Ret(UDState *state, AssemblyPtr assembly);   
->>>>>>> stevens/egalito-upgrade
     void fillMovabs(UDState *state, AssemblyPtr assembly);
     void fillMovsxd(UDState *state, AssemblyPtr assembly);
     void fillMovzx(UDState *state, AssemblyPtr assembly);

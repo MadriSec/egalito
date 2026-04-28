@@ -19,20 +19,17 @@ void FindSyscalls::visit(Function *function) {
     if (isSyscallFunction(function)) return;
 
     auto graph = new ControlFlowGraph(function);
-<<<<<<< HEAD
     if(graph->getCount() == 0) {
         LOG(1, "Skipping function " << function->getName()
             << " with empty CFG");
         delete graph;
         return;
     }
-
-
-
-=======
-    if(graph->get(0) == NULL)		//Check for empty functions
+    if(graph->get(0) == NULL){	//Check for empty functions
 	    return;
->>>>>>> stevens/egalito-upgrade
+    }
+
+
     auto config = new UDConfiguration(graph);
     auto working = new UDRegMemWorkingSet(function, graph);
     auto usedef = new UseDef(config, working);

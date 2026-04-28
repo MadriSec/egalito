@@ -13,11 +13,7 @@
 #include "log/log.h"
 
 DefList::~DefList() {
-<<<<<<< HEAD
-    for(auto tn : list)
-=======
     for(auto tn : list) 
->>>>>>> stevens/egalito-upgrade
     {
         delete tn.second;
     }
@@ -372,11 +368,7 @@ const std::map<int, UseDef::HandlerType> UseDef::handlers = {
     {X86_INS_MOVABS,    &UseDef::fillMovabs},
     {X86_INS_MOVSXD,    &UseDef::fillMovsxd},
     {X86_INS_MOVZX,     &UseDef::fillMovzx},
-<<<<<<< HEAD
-
-=======
     
->>>>>>> stevens/egalito-upgrade
     {X86_INS_CMOVA,     &UseDef::fillCMov },
     {X86_INS_CMOVAE,    &UseDef::fillCMov },
     {X86_INS_CMOVB,     &UseDef::fillCMov },
@@ -942,21 +934,13 @@ void UseDef::fillMemToReg(UDState *state, AssemblyPtr assembly, size_t width) {
         || id == X86_INS_CMOVS
         )
     {
-<<<<<<< HEAD
-        if(memTree)
-=======
         if(memTree) 
->>>>>>> stevens/egalito-upgrade
         {
             useMem(state, memTree, reg1);
             tree = TreeFactory::instance().make<TreeNodeDereference>(
                 memTree, width);
         }
-<<<<<<< HEAD
-        else
-=======
         else 
->>>>>>> stevens/egalito-upgrade
         {
             tree = TreeFactory::instance().make<TreeNodeConstant>(0);
         }
@@ -1871,11 +1855,7 @@ void UseDef::fillBt(UDState *state, AssemblyPtr assembly) {
     }
 }
 void UseDef::fillCall(UDState *state, AssemblyPtr assembly) {
-<<<<<<< HEAD
-
-=======
  
->>>>>>> stevens/egalito-upgrade
     auto instr = state->getInstruction();
     if(auto ici = dynamic_cast<IndirectCallInstruction *>(instr->getSemantic()))
     {
@@ -1898,11 +1878,7 @@ void UseDef::fillCall(UDState *state, AssemblyPtr assembly) {
             useReg(state, reg);
 
         }
-<<<<<<< HEAD
-    }
-=======
     } 
->>>>>>> stevens/egalito-upgrade
     for(int i = 0; i < 3; i++) {
         useReg(state, i);
         defReg(state, i, nullptr);

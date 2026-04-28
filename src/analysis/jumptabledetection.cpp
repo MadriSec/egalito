@@ -367,11 +367,7 @@ bool JumptableDetection::parseJumptableWithIndexTable(UDState *state,
             auto jsAssembly = js->getInstruction()->getSemantic()->getAssembly();
             if(jsAssembly->getId() == X86_INS_MOVZX)
                 info->signedOrZero=0;
-<<<<<<< HEAD
-            else if ((jsAssembly->getId() == X86_INS_MOVSB) || (jsAssembly->getId() == X86_INS_MOVSD) || (jsAssembly->getId() == X86_INS_MOVSHDUP) || (jsAssembly->getId() == X86_INS_MOVSLDUP) || (jsAssembly->getId() == X86_INS_MOVSQ) || (jsAssembly->getId() == X86_INS_MOVSS) || (jsAssembly->getId() == X86_INS_MOVSW) || (jsAssembly->getId() == X86_INS_MOVSX) || (jsAssembly->getId() == X86_INS_MOVSXD))
-=======
             else if ((jsAssembly->getId() == X86_INS_MOVSB) || (jsAssembly->getId() == X86_INS_MOVSD) || (jsAssembly->getId() == X86_INS_MOVSHDUP) || (jsAssembly->getId() == X86_INS_MOVSLDUP) || (jsAssembly->getId() == X86_INS_MOVSQ) || (jsAssembly->getId() == X86_INS_MOVSS) || (jsAssembly->getId() == X86_INS_MOVSW) || (jsAssembly->getId() == X86_INS_MOVSX) || (jsAssembly->getId() == X86_INS_MOVSXD)) 
->>>>>>> stevens/egalito-upgrade
                 info->signedOrZero=1;
 
             auto reg = regTree2->getRegister();
@@ -523,11 +519,7 @@ bool JumptableDetection::parseTableAccess(UDState *state, int reg,
             auto jsAssembly = s->getInstruction()->getSemantic()->getAssembly();
             if(jsAssembly->getId() == X86_INS_MOVZX)
                 info->signedOrZero=0;
-<<<<<<< HEAD
-            else if ((jsAssembly->getId() == X86_INS_MOVSB) || (jsAssembly->getId() == X86_INS_MOVSD) || (jsAssembly->getId() == X86_INS_MOVSHDUP) || (jsAssembly->getId() == X86_INS_MOVSLDUP) || (jsAssembly->getId() == X86_INS_MOVSQ) || (jsAssembly->getId() == X86_INS_MOVSS) || (jsAssembly->getId() == X86_INS_MOVSW) || (jsAssembly->getId() == X86_INS_MOVSX) || (jsAssembly->getId() == X86_INS_MOVSXD))
-=======
             else if ((jsAssembly->getId() == X86_INS_MOVSB) || (jsAssembly->getId() == X86_INS_MOVSD) || (jsAssembly->getId() == X86_INS_MOVSHDUP) || (jsAssembly->getId() == X86_INS_MOVSLDUP) || (jsAssembly->getId() == X86_INS_MOVSQ) || (jsAssembly->getId() == X86_INS_MOVSS) || (jsAssembly->getId() == X86_INS_MOVSW) || (jsAssembly->getId() == X86_INS_MOVSX) || (jsAssembly->getId() == X86_INS_MOVSXD)) 
->>>>>>> stevens/egalito-upgrade
                 info->signedOrZero=1;
             if(!deref) {
                 parseBound(s, regTree2->getRegister(), info);
@@ -592,11 +584,7 @@ bool JumptableDetection::parseTableAccess(UDState *state, int reg,
             auto jsAssembly = s->getInstruction()->getSemantic()->getAssembly();
             if(jsAssembly->getId() == X86_INS_MOVZX)
                 info->signedOrZero=0;
-<<<<<<< HEAD
-            else if ((jsAssembly->getId() == X86_INS_MOVSB) || (jsAssembly->getId() == X86_INS_MOVSD) || (jsAssembly->getId() == X86_INS_MOVSHDUP) || (jsAssembly->getId() == X86_INS_MOVSLDUP) || (jsAssembly->getId() == X86_INS_MOVSQ) || (jsAssembly->getId() == X86_INS_MOVSS) || (jsAssembly->getId() == X86_INS_MOVSW) || (jsAssembly->getId() == X86_INS_MOVSX) || (jsAssembly->getId() == X86_INS_MOVSXD))
-=======
             else if ((jsAssembly->getId() == X86_INS_MOVSB) || (jsAssembly->getId() == X86_INS_MOVSD) || (jsAssembly->getId() == X86_INS_MOVSHDUP) || (jsAssembly->getId() == X86_INS_MOVSLDUP) || (jsAssembly->getId() == X86_INS_MOVSQ) || (jsAssembly->getId() == X86_INS_MOVSS) || (jsAssembly->getId() == X86_INS_MOVSW) || (jsAssembly->getId() == X86_INS_MOVSX) || (jsAssembly->getId() == X86_INS_MOVSXD)) 
->>>>>>> stevens/egalito-upgrade
                 info->signedOrZero=1;
 
             parseBound(s, regTree2->getRegister(), info);

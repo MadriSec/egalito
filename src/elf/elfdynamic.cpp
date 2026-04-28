@@ -251,11 +251,7 @@ void ElfDynamic::processLibrary(const std::string &fullPath,
 
         LOG(2, "    skipping processing of ld.so for now");
 	if (!isLdEnabled)
-<<<<<<< HEAD
 		return;
-=======
-        	return;
->>>>>>> stevens/egalito-upgrade
     }
     if(!isFeatureEnabled("EGALITO_USE_DISASM")) {
         if(filename == "libcapstone.so.4" || filename == "libcapstone.so.3") {

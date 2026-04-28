@@ -145,11 +145,7 @@ FullCommandList::FullCommandList(EgalitoInterface *egalito) {
 
             std::snprintf(pfnam, TPATH_MAX-1, "/proc/self/fd/%d", fd);
             auto fs_path = std::experimental::filesystem::read_symlink(pfnam);
-<<<<<<< HEAD
             close(fd);
-=======
-            close(fd); 
->>>>>>> stevens/egalito-upgrade
             std::string output = fs_path.string();
 
             bool uniongen;
