@@ -10,10 +10,14 @@ EGALITO_ROOT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 #   PROFILE=1
 #   STACK_PROTECTOR=1
 
+<<<<<<< HEAD
 # Disabling the loader by default, because it uses static libraries
 # which makes building with gtirb much more difficult
 USE_LOADER=0
 
+=======
+USE_LOADER=0
+>>>>>>> stevens/egalito-upgrade
 # To cross-compile, set e.g. CROSS=aarch64-linux-gnu-
 #   for loader support, also set RTLD_TARGET to an appropriate simulator for
 #   running binaries (e.g. qemu-user-*).
@@ -70,7 +74,12 @@ CFLAGS          = -std=gnu99 -lstdc++fs $(GENERIC_FLAGS) $(OPT_FLAGS)
 CXXFLAGS        = -std=c++17 $(GENERIC_FLAGS) $(OPT_FLAGS)
 CLDFLAGS        = $(CROSSLD)
 
+<<<<<<< HEAD
 CLDFLAGS		+= -lcapstone -lstdc++fs
+=======
+CLDFLAGS		+= -L $(CAPSTONE_DIR)/lib -lcapstone -lstdc++fs \
+	-Wl,-rpath,$(abspath $(CAPSTONE_DIR)/lib)
+>>>>>>> stevens/egalito-upgrade
 
 ifdef USE_KEYSTONE  # set USE_KEYSTONE=1 to link with str->instr assembler
 	CLDFLAGS        += -L $(KEYSTONE_DIR)/build/llvm/lib -lkeystone \

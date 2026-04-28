@@ -191,7 +191,11 @@ size_t JumpTablePass::makeChildren(JumpTable *jumpTable, int count) {
         {
             target = targetBase + (unsigned int)value;
         }
+<<<<<<< HEAD
         else
+=======
+        else 
+>>>>>>> stevens/egalito-upgrade
         {
             target = targetBase + value;
         }

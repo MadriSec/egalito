@@ -145,7 +145,11 @@ FullCommandList::FullCommandList(EgalitoInterface *egalito) {
 
             std::snprintf(pfnam, TPATH_MAX-1, "/proc/self/fd/%d", fd);
             auto fs_path = std::experimental::filesystem::read_symlink(pfnam);
+<<<<<<< HEAD
             close(fd);
+=======
+            close(fd); 
+>>>>>>> stevens/egalito-upgrade
             std::string output = fs_path.string();
 
             bool uniongen;
@@ -295,7 +299,8 @@ bool FullCommandList::runCommandN(const char *file, ShellState &state,
         char buffer[BUFSIZ];
         ssize_t n = 0;
         std::string line;
-        if(in) while(std::getline(*in, line)) {
+        if (in)
+            while (std::getline(*in, line)) {
             //std::cout << "write [" << line << "]\n";
             line += '\n';
             write(p1[PIPE_WRITE], line.c_str(), line.length());

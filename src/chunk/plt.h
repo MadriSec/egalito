@@ -75,7 +75,10 @@ private:
     static void parsePLTGOT(RelocList *relocList, ElfMap *elf,
         PLTList *pltList, Module *module);
 private:
+<<<<<<< HEAD
     static PLTList *gt_parse(RelocList *relocList, ElfMap *elf, Module *module);
+=======
+>>>>>>> stevens/egalito-upgrade
     static void parsePLTLazy(const char *sectionName,
         const size_t sectionOffset, const size_t entrySize,
         PLTRegistry *registry, ElfMap *elf, PLTList *pltList, Module *module);
