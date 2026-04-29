@@ -70,12 +70,8 @@ CFLAGS          = -std=gnu99 -lstdc++fs $(GENERIC_FLAGS) $(OPT_FLAGS)
 CXXFLAGS        = -std=c++17 $(GENERIC_FLAGS) $(OPT_FLAGS)
 CLDFLAGS        = $(CROSSLD)
 
-<<<<<<< HEAD
-CLDFLAGS		+= -lcapstone -lstdc++fs
-=======
 CLDFLAGS		+= -L $(CAPSTONE_DIR)/lib -lcapstone -lstdc++fs \
 	-Wl,-rpath,$(abspath $(CAPSTONE_DIR)/lib)
->>>>>>> stevens/egalito-upgrade
 
 ifdef USE_KEYSTONE  # set USE_KEYSTONE=1 to link with str->instr assembler
 	CLDFLAGS        += -L $(KEYSTONE_DIR)/build/llvm/lib -lkeystone \

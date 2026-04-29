@@ -55,11 +55,7 @@ void SyspartPass::visit(Function *func)
              {
                 ChunkMutator m1(bl);
                 auto last =  (Instruction*)bl->getChildren()->genericGetLast();
-<<<<<<< HEAD
-                if(auto cfi = dynamic_cast<ControlFlowInstruction *>(last->getSemantic()))
-=======
                 if(auto cfi = dynamic_cast<ControlFlowInstruction *>(last->getSemantic())) 
->>>>>>> stevens/egalito-upgrade
                 {
                     auto sem1 = last->getSemantic();
                 }
