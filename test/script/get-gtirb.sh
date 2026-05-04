@@ -30,7 +30,8 @@ git clone --recursive https://github.com/GrammaTech/gtirb.git
 cd gtirb
 mkdir build
 cd build
-cmake .. -DGTIRB_BUILD_SHARED_LIBS=OFF
+# The GTIRB tests are slow to build, so skip them unless we plan to run them.
+cmake .. -DGTIRB_BUILD_SHARED_LIBS=OFF -DGTIRB_ENABLE_TESTS=OFF
 cmake --build . -- -j $(nproc)
 make install
 rm -r /tmp/gtirb-installation
