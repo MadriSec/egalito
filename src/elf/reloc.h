@@ -6,6 +6,10 @@
 #include <string>
 #include <elf.h>
 
+#ifndef SHT_RELR
+#define SHT_RELR 19
+#endif
+
 #include "types.h"
 #include "elf/elfmap.h"
 #include "elf/elfxx.h"
@@ -57,7 +61,7 @@ public:
 
     void add(Reloc *reloc);
     int getInfoLink() const { return infoLink; }
-
+    std::string getName() { return name; }
     ListType::iterator begin() { return relocList.begin(); }
     ListType::iterator end() { return relocList.end(); }
 };

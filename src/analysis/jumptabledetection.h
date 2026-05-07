@@ -24,12 +24,13 @@ private:
         address_t targetBase;
         address_t tableBase;
         size_t scale;
+        int signedOrZero;
         long entries;
 
         JumptableInfo(ControlFlowGraph *cfg, UDRegMemWorkingSet *working,
             UDState *state)
             : cfg(cfg), working(working), jumpState(state), valid(false),
-              targetBase(0), tableBase(0), scale(0), entries(0) {}
+              targetBase(0), tableBase(0), scale(0), entries(0), signedOrZero(1) {}
     };
 
     struct IndextableInfo {
@@ -87,7 +88,7 @@ private:
     bool getBoundFromControlFlow(UDState *state, int reg, JumptableInfo *info);
 
     void collectJumpsTo(UDState *state, JumptableInfo *info,
-        std::vector<UDState *>& result);
+        std::set<UDState *>& visited, std::vector<UDState *>& result);
     bool valueReaches(UDState *state, int reg, UDState *state2, int reg2,
         long *boundValue);
 };
