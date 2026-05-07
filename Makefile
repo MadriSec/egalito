@@ -39,3 +39,4 @@ clean realclean:
 	$(call short-make,test/example,clean)
 	$(call short-make,test/binary,clean)
 	$(call short-make,dep,$@)
+

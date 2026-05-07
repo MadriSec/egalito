@@ -1,4 +1,4 @@
-# The base OS of the docker image can be modified by providing (e.g.) the flag
+# The base OS of the docker image can be modified by providing (e.g.)
 # --build-arg BASE_IMAGE=ubuntu:18.04
 # to docker build
 ARG BASE_IMAGE="debian:bullseye"
@@ -20,6 +20,17 @@ RUN STDCPP_VERSION=$(dpkg -s libstdc++6 | grep -oP 'Version: \K\d+') && \
   libreadline-dev \
   lsb-release \
   unzip
+
+# Add debug repository and install debug symbols, if needed
+RUN echo "Preparing debug symbols..." && \
+    # If bookworm, a different approach is needed
+    if [ "$(lsb_release -cs)" = "bookworm" ]; then \
+        echo "deb http://deb.debian.org/debian-debug $(lsb_release -cs)-debug main" > /etc/apt/sources.list.d/debian-debug.list && \
+        apt-get update && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y libstdc++6-dbgsym; \
+    else \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y libstdc++6-7-dbg; \
+    fi
 
 FROM dependencies AS test
 

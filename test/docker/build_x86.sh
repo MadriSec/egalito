@@ -1,6 +1,7 @@
 #!/bin/bash -e
 
-REGISTRY_BASE="registry.gitlab.com/egalito/egalito"
+#REGISTRY_BASE="registry.gitlab.com/egalito/egalito"
+REGISTRY_BASE="registry.gitlab.com/madrisec/egalito"
 DOCKERFILE="Dockerfile_x86_64"
 BUILT_IMAGES=()
 
@@ -26,3 +27,4 @@ echo "===== Use the following commands to push images:"
 for IMAGE in ${BUILT_IMAGES[@]}; do
     echo "docker push $IMAGE"
 done
+
