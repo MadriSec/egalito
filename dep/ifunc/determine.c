@@ -11,6 +11,9 @@
 void nop() {}
 void breakpoint() {}
 
+void *__memcpy_chk(void *dest, const void *src, size_t len, size_t destlen);
+
+
 // must build with -O0
 int main(int argc, char **argv)
 {
