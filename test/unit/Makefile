@@ -8,8 +8,8 @@ CLDFLAGS    += -L ../../src/$(BUILDDIR) -legalito -L ../framework -lframework \
 	-Wl,-rpath=$(abspath ../../src/$(BUILDDIR)) \
 	-Wl,-rpath=$(abspath ../../dep/capstone/install/lib)
 
-CFLAGS      += '-DTESTDIR="../binary/build/"'
-CXXFLAGS    += '-DTESTDIR="../binary/build/"'
+CFLAGS      += '-DTESTDIR="$(abspath ../binary/build)/"'
+CXXFLAGS    += '-DTESTDIR="$(abspath ../binary/build)/"'
 
 ANALYSIS_SOURCES    = $(wildcard analysis/*.cpp)
 CHUNK_SOURCES       = $(wildcard chunk/*.cpp)
