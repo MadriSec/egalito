@@ -403,8 +403,16 @@ void PLTList::parseEntryLazy(ElfSection *pltSection, address_t entry,
             if(r) {
                 auto symbol = r->getSymbol();
                 if(!symbol) {
-                symbol = module->getElfSpace()->getSymbolList()->find(
-                    r->getAddend());
+                    auto symbolList = module->getElfSpace()->getSymbolList();
+                    if(symbolList) {
+                        symbol = symbolList->find(r->getAddend());
+                    }
+                }
+                if(!symbol) {
+                    auto newSymbolName = "unresolved_plt_" +
+                        std::to_string(pltAddress);
+                    symbol = new Symbol(value, 0, newSymbolName.c_str(),
+                        Symbol::TYPE_UNKNOWN, Symbol::BIND_GLOBAL, 0, 0);
                 }
                 auto externalSymbol = ExternalSymbolFactory(module)
                     .makeExternalSymbol(symbol);
