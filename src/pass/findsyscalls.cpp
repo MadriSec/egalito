@@ -19,6 +19,12 @@ void FindSyscalls::visit(Function *function) {
     if (isSyscallFunction(function)) return;
 
     auto graph = new ControlFlowGraph(function);
+    if(graph->getCount() == 0) {
+        LOG(1, "Skipping function " << function->getName()
+            << " with empty CFG");
+        delete graph;
+        return;
+    }
     auto config = new UDConfiguration(graph);
     auto working = new UDRegMemWorkingSet(function, graph);
     auto usedef = new UseDef(config, working);
@@ -59,7 +65,7 @@ void FindSyscalls::visit(Function *function) {
                 else {
                     func_target = dynamic_cast<Function *>(target);
                 }
-                if (func_target && isSyscallFunction(function)) {
+                if (func_target && isSyscallFunction(func_target)) {
                     LOG(10, "found call to syscall() function");
                     std::set<unsigned long> values;
                     seen.clear();

@@ -25,62 +25,67 @@ static void appendNop(Function *function, size_t size) {
 
     DisasmHandle handle(true);
     Instruction *i = nullptr;
-    switch(size) {
-    case 1:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>({0x90}));
-        break;
-    case 2:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>({0x66, 0x90}));
-        break;
-    case 3:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>({0x0f, 0x1f, 0x00}));
-        break;
-    case 4:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>({0x0f, 0x1f, 0x40, 0x00}));
-        break;
-    case 5:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>({0x0f, 0x1f, 0x44, 0x00, 0x00}));
-        break;
-    case 6:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>({0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00}));
-        break;
-    case 7:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>(
-                {0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00}));
-        break;
-    case 8:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>(
-                {0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}));
-        break;
-    case 9:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>(
-                {0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}));
-        break;
-    case 10:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>(
-                {0x66, 0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}));
-        break;
-    case 11:
-        i = DisassembleInstruction(handle).instruction(
-            std::vector<unsigned char>(
-                {0x66, 0x66, 0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}));
-        break;
-    default:
-        LOG(1, "NYI: appendNop for " << size);
-        break;
-    }
-    assert(i);
-    ChunkMutator(block).append(i);
+    do {
+        size_t nextSize = (size > 11 ? 11 : size);
+        size -= nextSize;
+        switch(nextSize) {
+        case 1:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>({0x90}));
+            break;
+        case 2:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>({0x66, 0x90}));
+            break;
+        case 3:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>({0x0f, 0x1f, 0x00}));
+            break;
+        case 4:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>({0x0f, 0x1f, 0x40, 0x00}));
+            break;
+        case 5:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>({0x0f, 0x1f, 0x44, 0x00, 0x00}));
+            break;
+        case 6:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>({0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00}));
+            break;
+        case 7:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>(
+                    {0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00}));
+            break;
+        case 8:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>(
+                    {0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}));
+            break;
+        case 9:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>(
+                    {0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}));
+            break;
+        case 10:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>(
+                    {0x66, 0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}));
+            break;
+        case 11:
+            i = DisassembleInstruction(handle).instruction(
+                std::vector<unsigned char>(
+                    {0x66, 0x66, 0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}));
+            break;
+        default:
+            LOG(1, "NYI: appendNop for " << nextSize);
+            break;
+        }
+        assert(i);
+        ChunkMutator(block).append(i);
+    } while(size > 0);
+
     ChunkMutator(function).append(block);
 #endif
 }
@@ -309,6 +314,12 @@ Link *PerfectLinkResolver::resolveInternally(Reloc *reloc, Module *module,
             }
 
             // value should be S
+            addr = symbol->getAddress();
+        }
+        
+        else if(type >= R_X86_64_NUM) {
+           // some ELFs with debug symbols use relocations of type 82 etc
+            LOG(1, "Handing unrecognized relocations ");
             addr = symbol->getAddress();
         }
         else {
