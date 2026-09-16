@@ -159,7 +159,11 @@ const LinkedInstruction::AARCH64_modeInfo_t LinkedInstruction::AARCH64_ImInfo[AA
       /* BL <label> */
       {0xFC000000,
        [] (address_t dest, address_t src, uint32_t fixed) {
-           diff_t disp = dest - src;
+           diff_t disp = static_cast<diff_t>(dest) - static_cast<diff_t>(src);
+           if((disp % 4) != 0 || disp < -(1LL << 27)
+               || disp >= (1LL << 27)) {
+               throw "AArch64 BL target is outside branch range";
+           }
            uint32_t imm = disp >> 2;
            return (imm & ~0xFC000000); },
        0
@@ -167,7 +171,11 @@ const LinkedInstruction::AARCH64_modeInfo_t LinkedInstruction::AARCH64_ImInfo[AA
       /* B <label> (same as BL; keep it separate for debugging purpose) */
       {0xFC000000,
        [] (address_t dest, address_t src, uint32_t fixed) {
-           diff_t disp = dest - src;
+           diff_t disp = static_cast<diff_t>(dest) - static_cast<diff_t>(src);
+           if((disp % 4) != 0 || disp < -(1LL << 27)
+               || disp >= (1LL << 27)) {
+               throw "AArch64 B target is outside branch range";
+           }
            uint32_t imm = disp >> 2;
            return (imm & ~0xFC000000); },
        0

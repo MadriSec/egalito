@@ -57,8 +57,9 @@ void RemovePadding::removeHead(Function *function) {
     if(assembly && assembly->getId() == ARM64_INS_NOP) {
         LOG(10, "    first instruction is NOP");
 
-        // __GNUC__ >= 5 for AARCH64
-        assert(firstInstr->getAddress() % 8);
+        // An aligned NOP may be an actual instruction in the function.
+        // Only trim the leading NOP used to reach the next 8-byte boundary.
+        if(firstInstr->getAddress() % 8 == 0) return;
 
         LOG(10, function->getName() << ":    removing first NOP");
         LOG(10, std::hex << firstInstr->getAddress());
@@ -105,4 +106,3 @@ void RemovePadding::removeTail(Function *function) {
         }
     }
 }
-

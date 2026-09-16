@@ -188,7 +188,7 @@ public:
     DeferredType *addDataRef(address_t source, address_t target,
         DataSection *targetSection);
     DeferredType *addDataFunctionRef(DataVariable *var, Function *function);
-    DeferredType *addDataAddressRef(address_t source,
+    DeferredType *addDataAddressRef(Section *sourceSection, size_t sourceOffset,
         std::function<address_t ()> getTarget);
     DeferredType *addDataArbitraryRef(DataVariable *var, address_t targetAddress);
     DeferredType *addDataIFuncRef(DataVariable *var, address_t targetAddress);
@@ -245,6 +245,10 @@ struct PLTCodeEntry {
         EntryPush = 6+1,
         EntryJmp2 = 6+5+1
     };
+} __attribute__((packed));
+#elif defined(ARCH_AARCH64)
+struct PLTCodeEntry {
+    uint32_t data[4];
 } __attribute__((packed));
 #else
     #error "Need PLTCodeEntry for current platform!"

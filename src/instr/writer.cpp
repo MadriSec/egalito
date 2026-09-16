@@ -85,17 +85,17 @@ void InstrWriterMakeReloc::visit(ControlFlowInstruction *controlFlow) {
 
 // StackFrameInstruction
 void InstrWriterCString::visit(StackFrameInstruction *stackFrame) {
-#if defined(ARCH_X86_64) || defined(ARCH_AARCH64)
+#ifdef ARCH_X86_64
     stackFrame->writeTo(target);
 #endif
 }
 void InstrWriterCppString::visit(StackFrameInstruction *stackFrame) {
-#if defined(ARCH_X86_64) || defined(ARCH_AARCH64)
+#ifdef ARCH_X86_64
     stackFrame->writeTo(target);
 #endif
 }
 void InstrWriterGetData::visit(StackFrameInstruction *stackFrame) {
-#if defined(ARCH_X86_64) || defined(ARCH_AARCH64)
+#ifdef ARCH_X86_64
     stackFrame->writeTo(data);
 #endif
 }

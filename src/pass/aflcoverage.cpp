@@ -1,6 +1,8 @@
+#include "aflcoverage.h"
+
+#ifdef ARCH_X86_64
 #include <vector>
 #include <cassert>
-#include "aflcoverage.h"
 #include "disasm/disassemble.h"
 #include "instr/register.h"
 #include "instr/concrete.h"
@@ -204,3 +206,25 @@ void AFLCoveragePass::addCoverageCode(Block *block) {
 
 #undef GET_BYTE
 #undef GET_BYTES
+
+#else
+
+// Keep the pass linkable, but reject unsupported targets before changing code.
+// The implementation above emits x86 instructions and uses the x86 syscall ABI.
+void AFLCoveragePass::visit(Program *) {
+    throw "AFLCoveragePass is only implemented for x86_64";
+}
+
+void AFLCoveragePass::visit(Module *) {
+    throw "AFLCoveragePass is only implemented for x86_64";
+}
+
+void AFLCoveragePass::visit(Function *) {
+    throw "AFLCoveragePass is only implemented for x86_64";
+}
+
+void AFLCoveragePass::visit(Block *) {
+    throw "AFLCoveragePass is only implemented for x86_64";
+}
+
+#endif

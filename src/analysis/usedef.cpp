@@ -11,6 +11,14 @@
 #include "chunk/dump.h"
 #include "log/log.h"
 
+#ifdef ARCH_AARCH64
+static TreeNode *makeAARCH64AddressTree(int base, size_t width, long disp) {
+    return TreeFactory::instance().make<TreeNodeAddition>(
+        TreeFactory::instance().make<TreeNodePhysicalRegister>(base, width),
+        TreeFactory::instance().make<TreeNodeConstant>(disp));
+}
+#endif
+
 DefList::~DefList() {
     for(auto tn : list) 
     {
@@ -981,7 +989,8 @@ void UseDef::fillMemToReg(UDState *state, AssemblyPtr assembly, size_t width) {
             TreeFactory::instance().make<TreeNodeConstant>(mem.disp));
 
         if(assembly->isPreIndex()) {
-            defReg(state, base, memTree);
+            defReg(state, base,
+                makeAARCH64AddressTree(base, widthB, mem.disp));
         }
     }
     useMem(state, memTree, reg0);
@@ -1029,10 +1038,12 @@ void UseDef::fillMemToReg(UDState *state, AssemblyPtr assembly, size_t width) {
 #endif
 }
 
+#ifdef ARCH_X86_64
 void UseDef::fillX86Ret(UDState *state, AssemblyPtr assembly)
 {
     useReg(state, X86Register::convertToPhysical(X86_REG_RAX));
 }
+#endif
 
 void UseDef::fillImmToReg(UDState *state, AssemblyPtr assembly) {
 #ifdef ARCH_X86_64
@@ -1237,16 +1248,11 @@ void UseDef::fillMemImmToReg(UDState *state, AssemblyPtr assembly) {
     size_t widthB = AARCH64GPRegister::getWidth(base, mem.base);
     useReg(state, base);
 
-    auto baseTree
-        = TreeFactory::instance().make<TreeNodePhysicalRegister>(base, widthB);
-
     assert(mem.index == INVALID_REGISTER);
     assert(mem.disp == 0);
 
     size_t width = (assembly->getBytes()[3] & 0b01000000) ? 8 : 4;
-    auto memTree = TreeFactory::instance().make<TreeNodeAddition>(
-        baseTree,
-        TreeFactory::instance().make<TreeNodeConstant>(0));
+    auto memTree = makeAARCH64AddressTree(base, widthB, 0);
     useMem(state, memTree, reg0);
 
     auto derefTree
@@ -1254,9 +1260,7 @@ void UseDef::fillMemImmToReg(UDState *state, AssemblyPtr assembly) {
     defReg(state, reg0, derefTree);
 
     auto imm = assembly->getAsmOperands()->getOperands()[2].imm;
-    auto wbTree = TreeFactory::instance().make<TreeNodeAddition>(
-        baseTree,
-        TreeFactory::instance().make<TreeNodeConstant>(imm));
+    auto wbTree = makeAARCH64AddressTree(base, widthB, imm);
     defReg(state, base, wbTree);
 #endif
 }
@@ -1330,7 +1334,8 @@ void UseDef::fillRegToMem(UDState *state, AssemblyPtr assembly, size_t width) {
             TreeFactory::instance().make<TreeNodeConstant>(mem.disp));
 
         if(assembly->isPreIndex()) {
-            defReg(state, base, memTree);
+            defReg(state, base,
+                makeAARCH64AddressTree(base, widthB, mem.disp));
         }
     }
 
@@ -1511,21 +1516,16 @@ void UseDef::fillMemToRegReg(UDState *state, AssemblyPtr assembly) {
 
     assert(mem.index == INVALID_REGISTER);
     auto disp = mem.disp;
-    auto dispTree = TreeFactory::instance().make<TreeNodeConstant>(disp);
-
-    auto memTree = TreeFactory::instance().make<TreeNodeAddition>(
-        TreeFactory::instance().make<TreeNodePhysicalRegister>(base, widthB),
-        dispTree);
     if(assembly->isPreIndex()) {
-        defReg(state, base, memTree);
+        defReg(state, base, makeAARCH64AddressTree(base, widthB, disp));
     }
 
     size_t width = (assembly->getBytes()[3] & 0b10000000) ? 8 : 4;
     auto memTree0 = TreeFactory::instance().make<TreeNodeAddition>(
-        memTree,
+        makeAARCH64AddressTree(base, widthB, disp),
         TreeFactory::instance().make<TreeNodeConstant>(0));
     auto memTree1 = TreeFactory::instance().make<TreeNodeAddition>(
-        memTree,
+        makeAARCH64AddressTree(base, widthB, disp),
         TreeFactory::instance().make<TreeNodeConstant>(width));
     useMem(state, memTree0, reg0);
     useMem(state, memTree1, reg1);
@@ -1557,21 +1557,16 @@ void UseDef::fillRegRegToMem(UDState *state, AssemblyPtr assembly) {
     useReg(state, base);
     assert(mem.index == INVALID_REGISTER);
     auto disp = mem.disp;
-    auto dispTree = TreeFactory::instance().make<TreeNodeConstant>(disp);
-
-    auto memTree = TreeFactory::instance().make<TreeNodeAddition>(
-        TreeFactory::instance().make<TreeNodePhysicalRegister>(base, widthB),
-        dispTree);
     if(assembly->isPreIndex()) {
-        defReg(state, base, memTree);
+        defReg(state, base, makeAARCH64AddressTree(base, widthB, disp));
     }
 
     size_t width = (assembly->getBytes()[3] & 0b10000000) ? 8 : 4;
     auto memTree0 = TreeFactory::instance().make<TreeNodeAddition>(
-        memTree,
+        makeAARCH64AddressTree(base, widthB, disp),
         TreeFactory::instance().make<TreeNodeConstant>(0));
     auto memTree1 = TreeFactory::instance().make<TreeNodeAddition>(
-        memTree,
+        makeAARCH64AddressTree(base, widthB, disp),
         TreeFactory::instance().make<TreeNodeConstant>(width));
 
     defMem(state, memTree0, reg0);
@@ -1595,26 +1590,17 @@ void UseDef::fillRegRegImmToMem(UDState *state, AssemblyPtr assembly) {
     size_t widthB = AARCH64GPRegister::getWidth(base, mem.base);
     useReg(state, base);
 
-    auto baseTree
-        = TreeFactory::instance().make<TreeNodePhysicalRegister>(base, widthB);
-
     assert(mem.index == INVALID_REGISTER);
     assert(mem.disp == 0);
 
     size_t width = (assembly->getBytes()[3] & 0b10000000) ? 8 : 4;
-    auto memTree0 = TreeFactory::instance().make<TreeNodeAddition>(
-        baseTree,
-        TreeFactory::instance().make<TreeNodeConstant>(0));
-    auto memTree1 = TreeFactory::instance().make<TreeNodeAddition>(
-        baseTree,
-        TreeFactory::instance().make<TreeNodeConstant>(width));
+    auto memTree0 = makeAARCH64AddressTree(base, widthB, 0);
+    auto memTree1 = makeAARCH64AddressTree(base, widthB, width);
     defMem(state, memTree0, reg0);
     defMem(state, memTree1, reg1);
 
     auto imm = assembly->getAsmOperands()->getOperands()[3].imm;
-    auto wbTree = TreeFactory::instance().make<TreeNodeAddition>(
-        baseTree,
-        TreeFactory::instance().make<TreeNodeConstant>(imm));
+    auto wbTree = makeAARCH64AddressTree(base, widthB, imm);
     defReg(state, base, wbTree);
 #endif
 }
@@ -1633,19 +1619,12 @@ void UseDef::fillMemImmToRegReg(UDState *state, AssemblyPtr assembly) {
     size_t widthB = AARCH64GPRegister::getWidth(base, mem.base);
     useReg(state, base);
 
-    auto baseTree
-        = TreeFactory::instance().make<TreeNodePhysicalRegister>(base, widthB);
-
     assert(mem.index == INVALID_REGISTER);
     assert(mem.disp == 0);
 
     size_t width = (assembly->getBytes()[3] & 0b10000000) ? 8 : 4;
-    auto memTree0 = TreeFactory::instance().make<TreeNodeAddition>(
-        baseTree,
-        TreeFactory::instance().make<TreeNodeConstant>(0));
-    auto memTree1 = TreeFactory::instance().make<TreeNodeAddition>(
-        baseTree,
-        TreeFactory::instance().make<TreeNodeConstant>(width));
+    auto memTree0 = makeAARCH64AddressTree(base, widthB, 0);
+    auto memTree1 = makeAARCH64AddressTree(base, widthB, width);
     useMem(state, memTree0, reg0);
     useMem(state, memTree1, reg1);
 
@@ -1657,9 +1636,7 @@ void UseDef::fillMemImmToRegReg(UDState *state, AssemblyPtr assembly) {
     defReg(state, reg1, derefTree1);
 
     auto imm = assembly->getAsmOperands()->getOperands()[3].imm;
-    auto wbTree = TreeFactory::instance().make<TreeNodeAddition>(
-        baseTree,
-        TreeFactory::instance().make<TreeNodeConstant>(imm));
+    auto wbTree = makeAARCH64AddressTree(base, widthB, imm);
     defReg(state, base, wbTree);
 #endif
 }

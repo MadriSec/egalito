@@ -1,4 +1,6 @@
 #include "profilesave.h"
+
+#ifdef ARCH_X86_64
 #include "operation/addinline.h"
 #include "operation/mutator.h"
 #include "disasm/disassemble.h"
@@ -136,3 +138,11 @@ Link *ProfileSavePass::appendString(DataSection *nameSection,
 
     return new DataOffsetLink(nameSection, offset, Link::SCOPE_INTERNAL_DATA);
 }
+
+#else
+
+void ProfileSavePass::visit(Module *) {
+    throw "ProfileSavePass is only implemented for x86_64";
+}
+
+#endif

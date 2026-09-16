@@ -86,7 +86,11 @@ SANDBOX_LIBRARY = $(BUILDDIR)libsandbox.so
 COVERAGE_LIBRARY = $(BUILDDIR)libcoverage.so
 CET_LIBRARY = $(BUILDDIR)libcet.so
 
+ifeq (aarch64,$(P_ARCH))
+OUTPUTS = $(ETSHELL) $(ETSHELL2) $(ETOBJDUMP) $(ETELF) $(ETPROFILE) $(ETORDER)
+else
 OUTPUTS = $(ETSHELL) $(ETSHELL2) $(ETOBJDUMP) $(ETSANDBOX) $(SANDBOX_LIBRARY) $(ETCOVERAGE) $(COVERAGE_LIBRARY) $(ETHARDEN) $(CET_LIBRARY) $(ETELF) $(ETPROFILE) $(ETTWOCODE) $(ETORDER)
+endif
 
 # Default target
 .PHONY: all
@@ -112,19 +116,7 @@ $(BUILDTREE): ../config/config.h
 .symlinks: $(OUTPUTS)
 	@touch .symlinks
 	@echo "LN-S" $(OUTPUTS)
-	@ln -sf $(ETSHELL)
-	@ln -sf $(ETSHELL2)
-	@ln -sf $(ETOBJDUMP)
-	@ln -sf $(ETSANDBOX)
-	@ln -sf $(SANDBOX_LIBRARY)
-	@ln -sf $(ETCOVERAGE)
-	@ln -sf $(COVERAGE_LIBRARY)
-	@ln -sf $(ETHARDEN)
-	@ln -sf $(CET_LIBRARY)
-	@ln -sf $(ETELF)
-	@ln -sf $(ETPROFILE)
-	@ln -sf $(ETTWOCODE)
-	@ln -sf $(ETORDER)
+	@$(foreach output,$(OUTPUTS),ln -sf $(output);)
 	@ln -sf $(shell pwd)/../src/$(BUILDDIR)libegalito.so $(BUILDDIR)libegalito.so
 
 .PHONY: rebuild-src

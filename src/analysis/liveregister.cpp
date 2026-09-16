@@ -64,7 +64,7 @@ void LiveRegister::detect(UDRegMemWorkingSet *working) {
 
     // resurrect actually saved registers
     SavedRegister saved;
-    for(auto r : saved.getList(function)) {
+    for(auto r : saved.getList(working)) {
         info.live(r);
     }
 

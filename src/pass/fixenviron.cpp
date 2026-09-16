@@ -99,6 +99,70 @@ void FixEnvironPass::visit(Program *program) {
         ChunkMutator(start, true);
     }
     movSem->regenerateAssembly();
+#elif defined(ARCH_AARCH64)
+/* Desired code to insert into _start:
+    // x1 contains argc and x2 points to argv.
+    __environ = &argv[argc+1];
+
+    add x9, x2, x1, lsl #3
+    add x9, x9, #8
+    adrp x10, __environ
+    str x9, [x10, #:lo12:__environ]
+*/
+    auto envFromArgv = Disassemble::instruction(
+        AARCH64InstructionBinary(0x8B010C49).getVector());
+    auto skipArgvNull = Disassemble::instruction(
+        AARCH64InstructionBinary(0x91002129).getVector());
+
+    static DisasmHandle handle(true);
+
+    auto adrpInstr = new Instruction();
+    auto adrpSem = new LinkedInstruction(adrpInstr);
+    adrpSem->setAssembly(DisassembleInstruction(handle).makeAssemblyPtr(
+        AARCH64InstructionBinary(0x9000000A).getVector()));
+    adrpSem->setLink(new DataOffsetLink(section, offset));
+    adrpInstr->setSemantic(adrpSem);
+
+    auto strInstr = new Instruction();
+    auto strSem = new LinkedInstruction(strInstr);
+    strSem->setAssembly(DisassembleInstruction(handle).makeAssemblyPtr(
+        AARCH64InstructionBinary(0xF9000149).getVector()));
+    strSem->setLink(new DataOffsetLink(section, offset));
+    strInstr->setSemantic(strSem);
+
+    // Insert after the startup code has loaded argc into x1 and argv into x2.
+    auto block = start->getChildren()->getIterable()->get(0);
+    Instruction *insertPoint = nullptr;
+    for(auto instr : CIter::children(block)) {
+        auto assembly = instr->getSemantic()->getAssembly();
+        if(!assembly || assembly->getId() != ARM64_INS_ADD) continue;
+
+        auto operands = assembly->getAsmOperands();
+        auto op = operands->getOperands();
+        if(operands->getOpCount() == 3
+            && op[0].type == ARM64_OP_REG && op[0].reg == ARM64_REG_X2
+            && op[1].type == ARM64_OP_REG && op[1].reg == ARM64_REG_SP
+            && op[2].type == ARM64_OP_IMM && op[2].imm == 8) {
+
+            insertPoint = instr;
+            break;
+        }
+    }
+
+    if(insertPoint) {
+        ChunkMutator(block).insertAfter(insertPoint,
+            {envFromArgv, skipArgvNull, adrpInstr, strInstr});
+    }
+    else {
+        LOG(0, "ERROR: FixEnvironPass: can't find add x2, sp, #8 in _start!");
+        std::exit(1);
+    }
+
+    {
+        ChunkMutator(start, true);
+    }
+    adrpSem->regenerateAssembly();
+    strSem->regenerateAssembly();
 #else
     #error "Need FixEnvironPass for current arch!"
 #endif

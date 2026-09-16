@@ -228,7 +228,21 @@ Link *HandleDataRelocsPass::resolveVariableLink(Reloc *reloc, Module *module) {
         return l;
         
     }
-#else
+#elif defined(ARCH_AARCH64)
+    if(reloc->getType() == R_AARCH64_NONE) {
+        return nullptr;
+    }
+    else if(reloc->getType() == R_AARCH64_RELATIVE) {
+        auto link = PerfectLinkResolver().resolveInternally(
+            reloc, module, weak);
+        LOG(0, "R_AARCH64_RELATIVE at 0x" << std::hex
+            << reloc->getAddress() << ", link = " << link);
+        return link;
+    }
+    else if(reloc->getType() == R_AARCH64_IRELATIVE) {
+        return PerfectLinkResolver().resolveInternally(reloc, module, weak);
+    }
+
     // We can't resolve the address yet, because a link may point to a TLS
     // in another module e.g. errno referred from libm (tls can be nullptr)
 #if defined(R_AARCH64_TLS_TPREL64) && !defined(R_AARCH64_TLS_TPREL)

@@ -106,6 +106,10 @@ public:
     void setNonreturn() { nonreturn = true; }
 };
 
+// Common code uses these names; AARCH64 does not need separate base classes.
+using LinkedInstructionBase = LinkedInstruction;
+using ControlFlowInstructionBase = ControlFlowInstruction;
+
 class LinkedLiteralInstruction : public LinkDecorator<LiteralInstruction> {
 public:
     static LinkedLiteralInstruction *makeLinked(Module *module,

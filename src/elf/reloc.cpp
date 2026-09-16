@@ -121,6 +121,15 @@ RelocList *RelocList::buildRelocList(ElfMap *elf, SymbolList *symbolList,
     ElfXX_Ehdr *header = (ElfXX_Ehdr *)elf;
     bool is_little_endian =  (header->e_ident[EI_DATA] == ELFDATA2LSB);
     auto addend_size = sizeof(Reloc::rel_addend_t);
+#if defined(ARCH_AARCH64)
+    constexpr Reloc::rel_type_t relativeRelocType = R_AARCH64_RELATIVE;
+#elif defined(ARCH_RISCV)
+    constexpr Reloc::rel_type_t relativeRelocType = R_RISCV_RELATIVE;
+#elif defined(ARCH_ARM)
+    constexpr Reloc::rel_type_t relativeRelocType = R_ARM_RELATIVE;
+#else
+    constexpr Reloc::rel_type_t relativeRelocType = R_X86_64_RELATIVE;
+#endif
     for (void *p : relrSections) {
         ElfXX_Shdr *s = static_cast<ElfXX_Shdr *>(p);
         const char *name = elf->getSHStrtab() + s->sh_name;
@@ -169,7 +178,7 @@ RelocList *RelocList::buildRelocList(ElfMap *elf, SymbolList *symbolList,
 					}
 				}
 				LOG(0,"Printing reloc addend at offset "<<std::hex<<base_addr<<" 0x"<<std::hex<<result);
-		                Reloc *reloc = new Reloc(base_addr, R_X86_64_RELATIVE, 0, nullptr, result);
+		                Reloc *reloc = new Reloc(base_addr, relativeRelocType, 0, nullptr, result);
 				LOG(0, "Adding RELR reloc at address "<<std::hex<<base_addr);
 		                list->add(reloc);
                 		list->makeOrGetSection(name, s)->add(reloc);
@@ -220,7 +229,7 @@ RelocList *RelocList::buildRelocList(ElfMap *elf, SymbolList *symbolList,
                                 		}
 		                                LOG(0,"Printing reloc addend at "<< offset<<" 0x"<<std::hex<<result);
                 		                LOG(0, "Adding RELR reloc at address "<<std::hex<<offset);
-						Reloc *reloc = new Reloc(offset, R_X86_64_RELATIVE, 0, nullptr, result);
+						Reloc *reloc = new Reloc(offset, relativeRelocType, 0, nullptr, result);
                 		        	list->add(reloc);
                         			list->makeOrGetSection(name, s)->add(reloc);
 					}

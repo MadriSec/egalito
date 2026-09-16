@@ -12,6 +12,28 @@
 #include "log/log.h"
 #include "config.h"
 
+#ifdef ARCH_AARCH64
+static constexpr ElfXX_Word RELOC_ABSOLUTE = R_AARCH64_ABS64;
+static constexpr ElfXX_Word RELOC_RELATIVE = R_AARCH64_RELATIVE;
+static constexpr ElfXX_Word RELOC_IRELATIVE = R_AARCH64_IRELATIVE;
+static constexpr ElfXX_Word RELOC_GLOB_DAT = R_AARCH64_GLOB_DAT;
+static constexpr ElfXX_Word RELOC_JUMP_SLOT = R_AARCH64_JUMP_SLOT;
+static constexpr ElfXX_Word RELOC_COPY = R_AARCH64_COPY;
+#if defined(R_AARCH64_TLS_TPREL64)
+static constexpr ElfXX_Word RELOC_TLS_TPREL = R_AARCH64_TLS_TPREL64;
+#else
+static constexpr ElfXX_Word RELOC_TLS_TPREL = R_AARCH64_TLS_TPREL;
+#endif
+#else
+static constexpr ElfXX_Word RELOC_ABSOLUTE = R_X86_64_64;
+static constexpr ElfXX_Word RELOC_RELATIVE = R_X86_64_RELATIVE;
+static constexpr ElfXX_Word RELOC_IRELATIVE = R_X86_64_IRELATIVE;
+static constexpr ElfXX_Word RELOC_GLOB_DAT = R_X86_64_GLOB_DAT;
+static constexpr ElfXX_Word RELOC_JUMP_SLOT = R_X86_64_JUMP_SLOT;
+static constexpr ElfXX_Word RELOC_COPY = R_X86_64_COPY;
+static constexpr ElfXX_Word RELOC_TLS_TPREL = R_X86_64_TPOFF64;
+#endif
+
 bool SymbolInTable::operator < (const SymbolInTable &other) const {
     if(tableIndex < other.tableIndex) return true;
     if(tableIndex > other.tableIndex) return false;
@@ -585,7 +607,7 @@ RelocSectionContent2::DeferredType *RelocSectionContent2
         if(sectionSymbolIndex == (size_t)-1) {
             LOG(1, "can't find section symbol for [" << name << "]");
         }
-        rela->r_info = ELF64_R_INFO(sectionSymbolIndex, R_X86_64_64);
+        rela->r_info = ELF64_R_INFO(sectionSymbolIndex, RELOC_ABSOLUTE);
     });
 
     DeferredMap<address_t, ElfXX_Rela>::add(source, deferred);
@@ -636,7 +658,7 @@ DataRelocSectionContent::DeferredType *DataRelocSectionContent
         LOG(1, "    elfSym name offset " << elfSym->getElfPtr()->st_name);
         size_t index = symtab->indexOf(elfSym);
         LOG(1, "    index looks like " << index << " for elfSym " << elfSym);
-        rela->r_info = ELF64_R_INFO(index, R_X86_64_GLOB_DAT);
+        rela->r_info = ELF64_R_INFO(index, RELOC_GLOB_DAT);
     });
 
     DeferredMap<address_t, ElfXX_Rela>::add(var->getAddress(), deferred);
@@ -662,7 +684,7 @@ DataRelocSectionContent::DeferredType *DataRelocSectionContent
         if(sectionSymbolIndex == (size_t)-1) {
             LOG(1, "can't find section symbol for [" << name << "]");
         }*/
-        rela->r_info = ELF64_R_INFO(0, R_X86_64_64);
+        rela->r_info = ELF64_R_INFO(0, RELOC_RELATIVE);
     });
 
     DeferredMap<address_t, ElfXX_Rela>::add(source, deferred);
@@ -701,21 +723,27 @@ DataRelocSectionContent::DeferredType *DataRelocSectionContent
 }
 
 DataRelocSectionContent::DeferredType *DataRelocSectionContent
-    ::addDataAddressRef(address_t source, std::function<address_t ()> getTarget) {
+    ::addDataAddressRef(Section *sourceSection, size_t sourceOffset,
+        std::function<address_t ()> getTarget) {
 
     auto rela = new ElfXX_Rela();
     std::memset(rela, 0, sizeof(*rela));
     auto deferred = new DeferredType(rela);
 
-    rela->r_offset  = source;
-    rela->r_info    = ELF64_R_INFO(0, R_X86_64_64);
+    rela->r_offset  = 0;
+    rela->r_info    = ELF64_R_INFO(0, RELOC_RELATIVE);
     rela->r_addend  = 0;
 
-    deferred->addFunction([getTarget] (ElfXX_Rela *rela) {
+    deferred->addFunction([sourceSection, sourceOffset, getTarget]
+        (ElfXX_Rela *rela) {
+        rela->r_offset = sourceSection->getHeader()->getAddress()
+            + sourceOffset;
         rela->r_addend = getTarget();
     });
 
-    DeferredMap<address_t, ElfXX_Rela>::add(source, deferred);
+    // The output section has no address when this relocation is created, so
+    // register it without an address key while preserving list order and size.
+    DeferredListIndexDecorator<DeferredListBase<DeferredType *>>::add(deferred);
     return deferred;
 }
 
@@ -727,7 +755,7 @@ DataRelocSectionContent::DeferredType *DataRelocSectionContent
     auto deferred = new DeferredType(rela);
 
     rela->r_offset  = var->getAddress();
-    rela->r_info    = ELF64_R_INFO(0, R_X86_64_RELATIVE);
+    rela->r_info    = ELF64_R_INFO(0, RELOC_RELATIVE);
     rela->r_addend  = targetAddress;
 
     /*deferred->addFunction([this, symtab, name] (ElfXX_Rela *rela) {
@@ -746,7 +774,7 @@ DataRelocSectionContent::DeferredType *DataRelocSectionContent
     auto deferred = new DeferredType(rela);
 
     rela->r_offset  = var->getAddress();
-    rela->r_info    = ELF64_R_INFO(0, R_X86_64_IRELATIVE);
+    rela->r_info    = ELF64_R_INFO(0, RELOC_IRELATIVE);
     rela->r_addend  = targetAddress;
 
     DeferredMap<address_t, ElfXX_Rela>::add(var->getAddress(), deferred);
@@ -802,10 +830,10 @@ DataRelocSectionContent::DeferredType *DataRelocSectionContent
         size_t index = symtab->indexOf(elfSym);
         LOG(1, "    index looks like " << index << " for elfSym " << elfSym);
         if(symbol->getType() == Symbol::TYPE_FUNC) {
-            rela->r_info = ELF64_R_INFO(index, R_X86_64_JUMP_SLOT);
+            rela->r_info = ELF64_R_INFO(index, RELOC_JUMP_SLOT);
         }
         else {
-            rela->r_info = ELF64_R_INFO(index, R_X86_64_GLOB_DAT);
+            rela->r_info = ELF64_R_INFO(index, RELOC_GLOB_DAT);
         }
     });
 
@@ -843,7 +871,7 @@ DataRelocSectionContent::DeferredType *DataRelocSectionContent
         LOG(1, "    elfSym name offset " << elfSym->getElfPtr()->st_name);
         size_t index = symtab->indexOf(elfSym);
         LOG(1, "    index looks like " << index << " for elfSym " << elfSym);
-        rela->r_info = ELF64_R_INFO(index, R_X86_64_COPY);
+        rela->r_info = ELF64_R_INFO(index, RELOC_COPY);
     });
 
     DeferredMap<address_t, ElfXX_Rela>::add(var->getAddress(), deferred);
@@ -881,10 +909,10 @@ DataRelocSectionContent::DeferredType *DataRelocSectionContent
         size_t index = dynsym->indexOf(elfSym);
         LOG(1, "    index looks like " << index << " for elfSym " << elfSym);
         if(plt->isPltGot()) {
-            rela->r_info = ELF64_R_INFO(index, R_X86_64_GLOB_DAT);
+            rela->r_info = ELF64_R_INFO(index, RELOC_GLOB_DAT);
         }
         else {
-            rela->r_info = ELF64_R_INFO(index, R_X86_64_JUMP_SLOT);
+            rela->r_info = ELF64_R_INFO(index, RELOC_JUMP_SLOT);
         }
 
         rela->r_offset = gotPLT->getHeader()->getAddress()
@@ -903,7 +931,7 @@ DataRelocSectionContent::DeferredType *DataRelocSectionContent
     auto deferred = new DeferredType(rela);
 
     rela->r_offset  = source;
-    rela->r_info    = ELF64_R_INFO(0, R_X86_64_TPOFF64);
+    rela->r_info    = ELF64_R_INFO(0, RELOC_TLS_TPREL);
     rela->r_addend  = link->getRawTarget();
 
     DeferredMap<address_t, ElfXX_Rela>::add(source, deferred);
@@ -951,6 +979,7 @@ PLTCodeContent::DeferredType *PLTCodeContent::addEntry(
     auto entry = new PLTCodeEntry();
     auto deferred = new DeferredType(entry);
 
+#ifdef ARCH_X86_64
     if(index == 0) {
         std::memcpy(entry->data,
             "\xff\x35\x00\x00\x00\x00"
@@ -963,6 +992,22 @@ PLTCodeContent::DeferredType *PLTCodeContent::addEntry(
             "\x68\x00\x00\x00\x00"
             "\xe9\x00\x00\x00\x00", 16);
     }
+#elif defined(ARCH_AARCH64)
+    if(index == 0) {
+        // This generator requests immediate binding through DF_BIND_NOW, so
+        // the lazy resolver entry is unreachable on AArch64.
+        entry->data[0] = 0xd4200000; // brk #0
+        entry->data[1] = 0xd4200000;
+        entry->data[2] = 0xd4200000;
+        entry->data[3] = 0xd4200000;
+    }
+    else {
+        entry->data[0] = 0x90000010; // adrp x16, GOT slot
+        entry->data[1] = 0xf9400211; // ldr  x17, [x16, #lo12]
+        entry->data[2] = 0x91000210; // add  x16, x16, #lo12
+        entry->data[3] = 0xd61f0220; // br   x17
+    }
+#endif
 
     deferred->addFunction([this, index] (PLTCodeEntry *entry) {
 #ifdef ARCH_X86_64
@@ -991,6 +1036,31 @@ PLTCodeContent::DeferredType *PLTCodeContent::addEntry(
             *(int32_t *)(entry->data + PLTCodeEntry::EntryJmp) = jmpOffset;
             *(int32_t *)(entry->data + PLTCodeEntry::EntryPush) = index-1;
             *(int32_t *)(entry->data + PLTCodeEntry::EntryJmp2) = jmp2Offset;
+        }
+#elif defined(ARCH_AARCH64)
+        if(index != 0) {
+            address_t pltAddress = pltSection->getHeader()->getAddress()
+                + index * sizeof(PLTCodeEntry);
+            address_t gotAddress = gotpltSection->getHeader()->getAddress()
+                + (index - 1 + 3) * sizeof(address_t);
+
+            int64_t pageDelta = static_cast<int64_t>(gotAddress >> 12)
+                - static_cast<int64_t>(pltAddress >> 12);
+            if(pageDelta < -(1 << 20) || pageDelta >= (1 << 20)) {
+                throw "AArch64 PLT target is outside ADRP range";
+            }
+
+            uint32_t adrpImmediate
+                = static_cast<uint64_t>(pageDelta) & 0x1fffff;
+            entry->data[0] |= (adrpImmediate & 0x3) << 29;
+            entry->data[0] |= ((adrpImmediate >> 2) & 0x7ffff) << 5;
+
+            uint32_t pageOffset = gotAddress & 0xfff;
+            if(pageOffset % sizeof(address_t) != 0) {
+                throw "AArch64 PLT GOT entry is not aligned";
+            }
+            entry->data[1] |= (pageOffset >> 3) << 10;
+            entry->data[2] |= pageOffset << 10;
         }
 #else
     #error "PLT code generation needed for current platform!"

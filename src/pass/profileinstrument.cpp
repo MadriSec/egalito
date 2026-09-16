@@ -1,5 +1,7 @@
-#include <cstring>  // for memset
 #include "profileinstrument.h"
+
+#ifdef ARCH_X86_64
+#include <cstring>  // for memset
 #include "operation/addinline.h"
 #include "operation/mutator.h"
 #include "disasm/disassemble.h"
@@ -137,3 +139,11 @@ void ProfileInstrumentPass::appendFunctionName(DataSection *nameSection,
     bytes.append(name.c_str(), name.length() + 1);
     region->saveDataBytes(bytes);
 }
+
+#else
+
+void ProfileInstrumentPass::visit(Function *) {
+    throw "ProfileInstrumentPass is only implemented for x86_64";
+}
+
+#endif

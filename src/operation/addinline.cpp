@@ -1,7 +1,10 @@
+#include "addinline.h"
+
+#ifdef ARCH_X86_64
+
 #include <iomanip>
 #include <algorithm>
 #include <capstone/x86.h>
-#include "addinline.h"
 #include "analysis/frametype.h"
 #include "disasm/disassemble.h"
 #include "instr/register.h"
@@ -131,3 +134,24 @@ ChunkAddInline::InstrList ChunkAddInline::SaveRestoreRegisters::getRegRestoreCod
     }
     return results;
 }
+
+#else
+
+ChunkAddInline::ChunkAddInline(Modification *modification)
+    : modification(modification) {
+}
+
+ChunkAddInline::ChunkAddInline(std::vector<Register> regList,
+    std::function<std::vector<Instruction *> (unsigned int)> generator)
+    : modification(new ModificationImpl(regList, generator)) {
+}
+
+void ChunkAddInline::insertBefore(Instruction *, bool) {
+    throw "ChunkAddInline is only implemented for x86_64";
+}
+
+void ChunkAddInline::insertAfter(Instruction *) {
+    throw "ChunkAddInline is only implemented for x86_64";
+}
+
+#endif

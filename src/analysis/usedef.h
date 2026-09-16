@@ -22,6 +22,11 @@ private:
     typedef std::map<int, TreeNode *> ListType;
     ListType list;
 public:
+    DefList() = default;
+    DefList(const DefList&) = delete;
+    DefList& operator=(const DefList&) = delete;
+    DefList(DefList&&) noexcept = default;
+    DefList& operator=(DefList&&) noexcept = default;
     ~DefList();
     void set(int reg, TreeNode *tree);
     void del(int reg);

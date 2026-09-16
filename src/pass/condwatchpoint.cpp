@@ -1,5 +1,7 @@
-#include <cstring>  // for memset
 #include "condwatchpoint.h"
+
+#ifdef ARCH_X86_64
+#include <cstring>  // for memset
 #include "operation/addinline.h"
 #include "operation/mutator.h"
 #include "disasm/disassemble.h"
@@ -8,7 +10,6 @@
 #include "log/log.h"
 
 void CondWatchpointPass::visit(Module *module) {
-#ifdef ARCH_X86_64
     auto instr = Disassemble::instruction({0xc3});  // ret
     // auto instr = Disassemble::instruction({0x0f, 0x0b});  // ud2
     auto block = new Block();
@@ -26,7 +27,6 @@ void CondWatchpointPass::visit(Module *module) {
 
     this->condTarget = function;
     recurse(module);
-#endif
 }
 
 void CondWatchpointPass::visit(Function *function) {
@@ -190,3 +190,16 @@ void CondWatchpointPass::appendFunctionName(DataSection *nameSection,
     bytes.append(name.c_str(), name.length() + 1);
     region->saveDataBytes(bytes);
 }
+
+#else
+
+// Keep the optional pass linkable without emitting x86 code on other targets.
+void CondWatchpointPass::visit(Module *) {
+    throw "CondWatchpointPass is only implemented for x86_64";
+}
+
+void CondWatchpointPass::visit(Function *) {
+    throw "CondWatchpointPass is only implemented for x86_64";
+}
+
+#endif

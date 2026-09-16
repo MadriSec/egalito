@@ -18,6 +18,43 @@
 #include "log/log.h"
 #include "config.h"
 
+static const char *getDefaultInterpreter() {
+#ifdef USE_MUSL
+    #if defined(ARCH_AARCH64)
+    return "/lib/ld-musl-aarch64.so.1";
+    #else
+    return "/lib/ld-musl-x86_64.so.1";
+    #endif
+#else
+    #if defined(ARCH_AARCH64)
+    return "/lib/ld-linux-aarch64.so.1";
+    #elif defined(ARCH_RISCV)
+    return "/lib/ld-linux-riscv64-lp64d.so.1";
+    #elif defined(ARCH_ARM)
+    return "/lib/ld-linux-armhf.so.3";
+    #else
+    return "/lib64/ld-linux-x86-64.so.2";
+    #endif
+#endif
+}
+
+static const char *getInterpreter(ElfData *data) {
+    auto first = data->getProgram()->getFirst();
+    if(first && first->getElfSpace()) {
+        auto elf = first->getElfSpace()->getElfMap();
+        if(elf && elf->hasInterpreter()) {
+            return elf->getInterpreter();
+        }
+    }
+    return getDefaultInterpreter();
+}
+
+static const char *getInterpreterName(ElfData *data) {
+    auto interpreter = getInterpreter(data);
+    auto slash = std::strrchr(interpreter, '/');
+    return slash ? slash + 1 : interpreter;
+}
+
 void BasicElfCreator::execute() {
     auto header = new Section("=elfheader");
     getSectionList()->addSection(header);
@@ -133,10 +170,11 @@ void BasicElfStructure::makeHeader() {
     std::memset(header->e_ident, 0, EI_NIDENT);
     std::memcpy(reinterpret_cast<char *>(header->e_ident), ELFMAG, SELFMAG);
     header->e_ident[EI_CLASS] = ELFCLASS64;
-#ifdef ARCH_X86_64
+#if defined(ARCH_X86_64) || defined(ARCH_AARCH64) \
+    || defined(ARCH_ARM) || defined(ARCH_RISCV)
     header->e_ident[EI_DATA] = ELFDATA2LSB;
 #else
-    header->e_ident[EI_DATA] = ELFDATA2MSB;
+    #error "Need ELF endianness for current platform!"
 #endif
     header->e_ident[EI_VERSION] = EV_CURRENT;
     header->e_ident[EI_OSABI] = ELFOSABI_NONE;
@@ -151,8 +189,14 @@ void BasicElfStructure::makeHeader() {
     }
 #ifdef ARCH_X86_64
     header->e_machine = EM_X86_64;
-#else
+#elif defined(ARCH_AARCH64)
     header->e_machine = EM_AARCH64;
+#elif defined(ARCH_ARM)
+    header->e_machine = EM_ARM;
+#elif defined(ARCH_RISCV)
+    header->e_machine = EM_RISCV;
+#else
+    #error "Need ELF machine type for current platform!"
 #endif
     header->e_version = EV_CURRENT;
     header->e_flags = 0;
@@ -326,11 +370,7 @@ void BasicElfStructure::makePhdrTable() {
     });
 
     auto interpSection = getSection(".interp");
-#ifndef USE_MUSL
-    const char *interpreter = "/lib64/ld-linux-x86-64.so.2";
-#else
-    const char *interpreter = "/lib/ld-musl-x86_64.so.1";
-#endif
+    const char *interpreter = getInterpreter(getData());
     auto interpContent = new DeferredString(interpreter, strlen(interpreter) + 1);
     interpSection->setContent(interpContent);
     auto interp = new SegmentInfo(PT_INTERP, PF_R, 0x1);
@@ -374,7 +414,7 @@ void BasicElfStructure::makeDynamicSection() {
         auto first = getData()->getProgram()->getFirst();
         if(first->getLibrary()->getRole() == Library::ROLE_LIBC) {
             dynamic->addPair(DT_NEEDED,
-                dynstr->add("ld-linux-x86-64.so.2", true));
+                dynstr->add(getInterpreterName(getData()), true));
         }
 
         if(first->getLibrary()->getRole() != Library::ROLE_MAIN) {
@@ -389,7 +429,7 @@ void BasicElfStructure::makeDynamicSection() {
         // Add DT_NEEDED dependency on ld.so because we combine libc into
         // our executable, and libc uses _rtld_global{,_ro} from ld.so.
         dynamic->addPair(DT_NEEDED,
-            dynstr->add("ld-linux-x86-64.so.2", true));
+            dynstr->add(getInterpreterName(getData()), true));
     }
 
     dynamic->addPair(DT_STRTAB, [this] () {
@@ -511,9 +551,23 @@ void AssignSectionsToSegments::execute() {
         phdrTable->add(dynSegment2, 0x500000);
 
         auto pltSegment = new SegmentInfo(PT_LOAD, PF_R | PF_X, 0x1000);
-        pltSegment->addContains(getSection(".plt"));
-        // XXX: currently 0x600000 is hardcoded in UpdatePLTLinks()
-        phdrTable->add(pltSegment, 0x600000);
+        auto pltSection = getSection(".plt");
+        pltSegment->addContains(pltSection);
+#ifdef ARCH_AARCH64
+        // AArch64 B/BL can reach only +/-128 MiB. Keep the generated PLT
+        // immediately before the code backing instead of at the x86 address.
+        constexpr address_t pageSize = 0x1000;
+        auto codeBase = getData()->getBacking()->getBase();
+        auto pltSize = pltSection->getContent()->getSize();
+        if(pltSize > codeBase) {
+            throw "AArch64 PLT does not fit before the code backing";
+        }
+        address_t pltBase = (codeBase - pltSize) & ~(pageSize - 1);
+#else
+        address_t pltBase = 0x600000;
+#endif
+        phdrTable->add(pltSegment, pltBase);
+        phdrTable->assignAddressesToSections(pltSegment, pltBase);
 
         auto dynamicSegment = new SegmentInfo(PT_DYNAMIC, PF_R | PF_W, 0x8);
         dynamicSegment->addContains(getSection(".dynamic"));
@@ -562,7 +616,7 @@ void TextSectionCreator::execute() {
     phdrTable->add(loadSegment);
 }
 
-MakeInitArray::MakeInitArray(int stage) : stage(stage), initArraySize(0) {
+MakeInitArray::MakeInitArray(int stage) : stage(stage) {
     setName(StreamAsString() << "MakeInitArray{stage=" << stage << "}");
 }
 
@@ -574,16 +628,15 @@ void MakeInitArray::execute() {
     }
 }
 
-void MakeInitArray::addInitFunction(InitArraySectionContent *content,
+void MakeInitArray::addInitFunction(Section *section,
+    InitArraySectionContent *content,
     std::function<address_t ()> value) {
 
     if(getConfig()->isPositionIndependent()) {
         auto relaDyn = getData()->getSection(".rela.dyn")->castAs<DataRelocSectionContent *>();
 
-        // !!! Hardcoding this address for now. After =elfheader & .interp
-        const address_t INIT_ARRAY_ADDR = 0x20005c + initArraySize;
         auto offset = content->getSize();
-        relaDyn->addDataAddressRef(INIT_ARRAY_ADDR + offset, value);
+        relaDyn->addDataAddressRef(section, offset, value);
         content->addPointer([] () { return address_t(0); });
     }
     else {
@@ -592,6 +645,9 @@ void MakeInitArray::addInitFunction(InitArraySectionContent *content,
 }
 void MakeInitArray::makeInitArraySectionHelper(const char *type,
     InitArraySectionContent *content, bool isInit) {
+
+    auto outputSection = getData()->getSection(
+        isInit ? ".init_array" : ".fini_array");
 
 #if 0
     address_t firstInit = 0;
@@ -638,7 +694,7 @@ void MakeInitArray::makeInitArraySectionHelper(const char *type,
         }
 
         if(firstInit) {
-            addInitFunction(content, [this, module, firstInit] () {
+            addInitFunction(outputSection, content, [this, module, firstInit] () {
                 Function *function = nullptr;
                 if(module->getElfSpace()->getSymbolList()) {
                     auto symbol = module->getElfSpace()->getSymbolList()->find(firstInit);
@@ -662,7 +718,8 @@ void MakeInitArray::makeInitArraySectionHelper(const char *type,
     }
 
     for(auto link : initFunctions) {
-        addInitFunction(content, [link] () { return link->getTargetAddress(); });
+        addInitFunction(outputSection, content,
+            [link] () { return link->getTargetAddress(); });
     }
 #else
     Function *firstInit = nullptr;
@@ -689,10 +746,12 @@ void MakeInitArray::makeInitArraySectionHelper(const char *type,
     }
 
     if(firstInit) {
-        addInitFunction(content, [firstInit] () { return firstInit->getAddress(); });
+        addInitFunction(outputSection, content,
+            [firstInit] () { return firstInit->getAddress(); });
     }
     for(auto function : initFunctions) {
-        addInitFunction(content, [function] () { return function->getAddress(); });
+        addInitFunction(outputSection, content,
+            [function] () { return function->getAddress(); });
     }
 #endif
 }
@@ -704,7 +763,6 @@ void MakeInitArray::makeInitArraySections() {
         makeInitArraySectionHelper("init", content, true);
 
         initArraySection->setContent(content);
-        initArraySize = content->getSize();  // must happen before fini code
     }
 
     {
@@ -734,6 +792,22 @@ Function *MakeInitArray::findLibcCsuInit(Chunk *entryPoint) {
                     return dynamic_cast<Function *>(link->getTarget());
                 }
             }
+#elif defined(ARCH_AARCH64)
+            auto assembly = instr->getSemantic()->getAssembly();
+            if(!assembly) continue;
+            auto ops = assembly->getAsmOperands();
+            if(ops->getOpCount() > 0) {
+                auto op0 = ops->getOperands()[0];
+                if(op0.type == ARM64_OP_REG && op0.reg == ARM64_REG_X3) {
+                    auto linkTarget = link->getTarget();
+                    if(linkTarget) {
+                        if(auto target
+                            = dynamic_cast<Function *>(&*linkTarget)) {
+                            return target;
+                        }
+                    }
+                }
+            }
 #else
 #error "Need __libc_csu_init detection code for current platform!"
 #endif
@@ -759,6 +833,7 @@ void MakeInitArray::makeInitArraySectionLinks() {
             return;
         }
     }
+#ifdef ARCH_X86_64
     auto block = func->getChildren()->getIterable()->get(0);
     int counter = 0;
     for(auto instr : CIter::children(block)) {
@@ -795,6 +870,47 @@ void MakeInitArray::makeInitArraySectionLinks() {
             if(counter >= 2) break;
         }
     }
+#elif defined(ARCH_AARCH64)
+    size_t updatedLinks = 0;
+    for(auto functionBlock : CIter::children(func)) {
+        for(auto instr : CIter::children(functionBlock)) {
+            auto semantic = instr->getSemantic();
+            auto assembly = semantic->getAssembly();
+            auto link = semantic->getLink();
+            if(!assembly || !link || !link->getTarget()) continue;
+
+            auto id = assembly->getId();
+            if(id != ARM64_INS_ADRP && id != ARM64_INS_ADR
+                && id != ARM64_INS_ADD && id != ARM64_INS_LDR) {
+                continue;
+            }
+
+            auto oldSection = dynamic_cast<DataSection *>(&*link->getTarget());
+            if(!oldSection
+                || oldSection->getType() != DataSection::TYPE_INIT_ARRAY) {
+                continue;
+            }
+
+            auto oldOffset
+                = link->getTargetAddress() - oldSection->getAddress();
+            if(oldOffset != 0 && oldOffset != oldSection->getSize()) continue;
+
+            auto targetAddress = initArraySection->getHeader()->getAddress();
+            if(oldOffset == oldSection->getSize()) {
+                targetAddress += initArraySection->getContent()->getSize();
+            }
+
+            auto linked = dynamic_cast<LinkedInstruction *>(semantic);
+            if(!linked) continue;
+            linked->setLink(new UnresolvedLink(targetAddress));
+            linked->regenerateAssembly();
+            updatedLinks ++;
+        }
+    }
+    if(updatedLinks == 0) {
+        LOG(1, "Warning: MakeInitArray found no AArch64 init-array links");
+    }
+#endif
 }
 
 void MakeGlobalPLT::execute() {
@@ -807,6 +923,7 @@ void MakeGlobalPLT::collectPLTEntries() {
     auto &entryMap = getData()->getPLTIndexMap()->getEntryMap();
 
     for(auto module : CIter::children(getData()->getProgram())) {
+        if(!module->getPLTList()) continue;
         for(auto plt : CIter::plts(module)) {
             if(plt->getTarget()) continue;
 
@@ -930,14 +1047,23 @@ void UpdatePLTLinks::execute() {
                 return;
             }
 
-            // set the link to target the absolute address of the PLT.
-            address_t address = pltBase + (index * 0x10);
+            // Set the link to the entry in the generated PLT.
+            address_t address = pltBase + (index * sizeof(PLTCodeEntry));
+#ifdef ARCH_AARCH64
+            constexpr int64_t branchRange = 1LL << 27;
+            int64_t displacement = static_cast<int64_t>(address)
+                - static_cast<int64_t>(instruction->getAddress());
+            if((displacement % 4) != 0 || displacement < -branchRange
+                || displacement >= branchRange) {
+                throw "AArch64 PLT branch is outside B/BL range";
+            }
+#endif
             cfi->setLink(new UnresolvedRelativeLink(address));
         }
     };
 
-    // XXX: this really shouldn't be hardcoded!
-    Updater updater(entryMap, 0x600000);
+    auto pltSection = getData()->getPLTIndexMap()->getPltSection();
+    Updater updater(entryMap, pltSection->getHeader()->getAddress());
     getData()->getProgram()->accept(&updater);
 }
 
@@ -1251,4 +1377,3 @@ void MakePaddingSection::execute() {
     paddingSection->setContent(paddingContent);
     getData()->getSectionList()->addSection(paddingSection);
 }
-

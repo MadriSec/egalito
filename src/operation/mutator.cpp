@@ -174,15 +174,21 @@ void ChunkMutator::insertBeforeJumpTo(Instruction *insertPoint, Instruction *new
     if(auto linked = dynamic_cast<LinkedInstructionBase *>(sem1)) {
         linked->setInstruction(newChunk);
     }
+#ifdef ARCH_X86_64
+    // On AARCH64 and RISC-V, control-flow instructions inherit from
+    // LinkedInstruction and are already updated by setInstruction above.
     if(auto linked = dynamic_cast<ControlFlowInstructionBase *>(sem1)) {
         linked->setSource(newChunk);
     }
+#endif
     if(auto linked = dynamic_cast<LinkedInstructionBase *>(sem2)) {
         linked->setInstruction(insertPoint);
     }
+#ifdef ARCH_X86_64
     if(auto linked = dynamic_cast<ControlFlowInstructionBase *>(sem2)) {
         linked->setSource(insertPoint);
     }
+#endif
 }
 
 void ChunkMutator::insertAfter(Instruction *insertPoint,
@@ -369,7 +375,6 @@ void ChunkMutator::splitFunctionBefore(Block *point) {
 
     for(auto child : moveList) {
         ChunkMutator(function).remove(child);
-        delete child->getPosition();
     }
     auto functionList = dynamic_cast<FunctionList *>(function->getParent());
     functionList->getChildren()->add(function2);

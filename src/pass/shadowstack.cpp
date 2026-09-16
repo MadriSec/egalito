@@ -1,6 +1,9 @@
+#include "shadowstack.h"
+
+#ifdef ARCH_X86_64
+
 #include <vector>
 #include <cassert>
-#include "shadowstack.h"
 #include "disasm/disassemble.h"
 #include "instr/register.h"
 #include "instr/concrete.h"
@@ -312,3 +315,23 @@ void ShadowStackPass::popFromShadowStackGS(Instruction *instruction) {
 #undef FITS_IN_ONE_BYTE
 #undef GET_BYTE
 #undef GET_BYTES
+
+#else
+
+void ShadowStackPass::visit(Program *) {
+    throw "ShadowStackPass is only implemented for x86_64";
+}
+
+void ShadowStackPass::visit(Module *) {
+    throw "ShadowStackPass is only implemented for x86_64";
+}
+
+void ShadowStackPass::visit(Function *) {
+    throw "ShadowStackPass is only implemented for x86_64";
+}
+
+void ShadowStackPass::visit(Instruction *) {
+    throw "ShadowStackPass is only implemented for x86_64";
+}
+
+#endif

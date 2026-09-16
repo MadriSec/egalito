@@ -6,7 +6,9 @@
 #include "log/log.h"
 
 void IFuncPLTs::visit(Module *module) {
-    recurse(module->getPLTList());
+    if(module->getPLTList()) {
+        recurse(module->getPLTList());
+    }
 }
 
 void IFuncPLTs::visit(PLTList *pltList) {
@@ -14,9 +16,9 @@ void IFuncPLTs::visit(PLTList *pltList) {
 }
 
 void IFuncPLTs::visit(PLTTrampoline *trampoline) {
-#ifdef ARCH_X86_64
     if(!trampoline->isIFunc()) return;
 
+#ifdef ARCH_X86_64
     freeChildren(trampoline, 2);
 
     auto block1 = new Block();
@@ -86,8 +88,10 @@ void IFuncPLTs::visit(PLTTrampoline *trampoline) {
         ChunkMutator m(trampoline, true);
         m.append(block2);
     }
+#elif defined(ARCH_AARCH64)
+    throw "IFuncPLTs: AArch64 IFUNC trampoline generation is not implemented";
 #else
-    assert(0); // shouldn't be reached
+    throw "IFuncPLTs: IFUNC trampoline generation is not implemented for this architecture";
 #endif
 }
 

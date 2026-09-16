@@ -1,5 +1,8 @@
-#include <vector>
 #include "syspartpass.h"
+
+#ifdef ARCH_X86_64
+
+#include <vector>
 #include "disasm/disassemble.h"
 #include "instr/register.h"
 #include "instr/concrete.h"
@@ -9,7 +12,6 @@
 #include "log/log.h"
 
 void SyspartPass::visit(Module *module) {
-#ifdef ARCH_X86_64
     if(this->enforcement_func != NULL)
     {
         recurse(module);
@@ -37,7 +39,6 @@ void SyspartPass::visit(Module *module) {
     this->enforcement_func = function;
     recurse(module);
 
-#endif
 }
 
 void SyspartPass::visit(Function *func)
@@ -95,3 +96,14 @@ void SyspartPass::visit(Function *func)
     }
 }
 
+#else
+
+void SyspartPass::visit(Module *) {
+    throw "SyspartPass is only implemented for x86_64";
+}
+
+void SyspartPass::visit(Function *) {
+    throw "SyspartPass is only implemented for x86_64";
+}
+
+#endif

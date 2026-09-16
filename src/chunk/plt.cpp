@@ -54,11 +54,9 @@ Chunk *PLTTrampoline::getTarget() const {
 }
 
 bool PLTTrampoline::isIFunc() const {
-#ifdef ARCH_X86_64
     if(auto v = dynamic_cast<Function *>(getTarget())) {
         return v->isIFunc();
     }
-#endif
 
     return false;
 }

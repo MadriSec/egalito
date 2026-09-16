@@ -70,8 +70,6 @@ class MakeInitArray : public NormalElfOperation {
 private:
     int stage;
 
-    // size of .init_array in bytes, used to offset .fini_array afterwards
-    size_t initArraySize;
 public:
     MakeInitArray(int stage);
     virtual void execute();
@@ -80,7 +78,7 @@ private:
     void makeInitArraySectionHelper(const char *type,
         InitArraySectionContent *content, bool isInit);
     void makeInitArraySectionLinks();
-    void addInitFunction(InitArraySectionContent *content,
+    void addInitFunction(Section *section, InitArraySectionContent *content,
         std::function<address_t ()> value);
     Function *findLibcCsuInit(Chunk *entryPoint);
 };

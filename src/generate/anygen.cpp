@@ -52,10 +52,11 @@ void AnyGen::makeHeader() {
     memset(header->e_ident, 0, EI_NIDENT);
     memcpy(reinterpret_cast<char *>(header->e_ident), ELFMAG, SELFMAG);
     header->e_ident[EI_CLASS] = ELFCLASS64;
-#ifdef ARCH_X86_64
+#if defined(ARCH_X86_64) || defined(ARCH_AARCH64) \
+    || defined(ARCH_ARM) || defined(ARCH_RISCV)
     header->e_ident[EI_DATA] = ELFDATA2LSB;
 #else
-    header->e_ident[EI_DATA] = ELFDATA2MSB;
+    #error "Need ELF endianness for current platform!"
 #endif
     header->e_ident[EI_VERSION] = EV_CURRENT;
     header->e_ident[EI_OSABI] = ELFOSABI_NONE;
@@ -65,8 +66,14 @@ void AnyGen::makeHeader() {
     header->e_type = ET_EXEC;
 #ifdef ARCH_X86_64
     header->e_machine = EM_X86_64;
-#else
+#elif defined(ARCH_AARCH64)
     header->e_machine = EM_AARCH64;
+#elif defined(ARCH_ARM)
+    header->e_machine = EM_ARM;
+#elif defined(ARCH_RISCV)
+    header->e_machine = EM_RISCV;
+#else
+    #error "Need ELF machine type for current platform!"
 #endif
     header->e_version = EV_CURRENT;
     header->e_flags = 0;

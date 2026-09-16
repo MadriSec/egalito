@@ -394,8 +394,9 @@ void InstrDumper::visit(LinkedLiteralInstruction *semantic) {
         pos,
         "(literal)",
         link ? link->getTargetAddress() : 0,
+        false,
         nullptr,
-        bytes2.c_str());
+        bytes2);
 #endif
 }
 

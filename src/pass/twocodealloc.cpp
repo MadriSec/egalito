@@ -1,6 +1,9 @@
+#include "twocodealloc.h"
+
+#ifdef ARCH_X86_64
+
 #include <cassert>
 #include <cstring>
-#include "twocodealloc.h"
 #include "switchcontext.h"
 #include "chunk/concrete.h"
 #include "chunk/gstable.h"
@@ -96,3 +99,11 @@ void TwocodeAllocPass::createAllocationFunction(Module *module) {
     func->setParent(module->getFunctionList());
     this->gsAllocFunc = func;
 }
+
+#else
+
+void TwocodeAllocPass::visit(Program *) {
+    throw "TwocodeAllocPass is only implemented for x86_64";
+}
+
+#endif
