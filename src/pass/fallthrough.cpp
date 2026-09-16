@@ -109,6 +109,9 @@ void FallThroughFunctionPass::visit(Function *function) {
                 else if(assembly->getId() == X86_INS_SYSCALL) {
                     falling = false;
                 }
+                else if(assembly->getId() == X86_INS_INT3) {
+                    falling = false;
+                }
                 else if(assembly->getId() == X86_INS_NOP) {
                     nop++;
                 }
