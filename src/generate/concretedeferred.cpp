@@ -1040,7 +1040,7 @@ PLTCodeContent::DeferredType *PLTCodeContent::addEntry(
 #elif defined(ARCH_AARCH64)
         if(index != 0) {
             address_t pltAddress = pltSection->getHeader()->getAddress()
-                + index * sizeof(PLTCodeEntry);
+                + entryOffset(index);
             address_t gotAddress = gotpltSection->getHeader()->getAddress()
                 + (index - 1 + 3) * sizeof(address_t);
 
@@ -1068,5 +1068,15 @@ PLTCodeContent::DeferredType *PLTCodeContent::addEntry(
     });
 
     DeferredMap<PLTTrampoline *, PLTCodeEntry>::add(plt, deferred);
+#ifdef ARCH_AARCH64
+    if(index == 0) {
+        // Keep the conventional 32-byte PLT0 layout, even though binding is
+        // immediate and the resolver code is unreachable. Disassemblers use
+        // this size when matching PLT entries to .rela.plt symbols.
+        auto padding = new PLTCodeEntry();
+        for(size_t i = 0; i < 4; ++i) padding->data[i] = 0xd4200000;
+        DeferredListBase<DeferredType *>::add(new DeferredType(padding));
+    }
+#endif
     return deferred;
 }

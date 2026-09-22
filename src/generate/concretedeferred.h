@@ -264,6 +264,15 @@ public:
     PLTCodeContent(Section *gotpltSection, Section *pltSection)
         : gotpltSection(gotpltSection), pltSection(pltSection) {}
 
+    static size_t entryOffset(size_t index) {
+#ifdef ARCH_AARCH64
+        // AArch64 PLT0 occupies 32 bytes; following entries occupy 16 each.
+        return index == 0 ? 0 : (index + 1) * sizeof(PLTCodeEntry);
+#else
+        return index * sizeof(PLTCodeEntry);
+#endif
+    }
+
     DeferredType *addEntry(PLTTrampoline *plt, size_t index);
 };
 

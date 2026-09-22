@@ -1048,7 +1048,7 @@ void UpdatePLTLinks::execute() {
             }
 
             // Set the link to the entry in the generated PLT.
-            address_t address = pltBase + (index * sizeof(PLTCodeEntry));
+            address_t address = pltBase + PLTCodeContent::entryOffset(index);
 #ifdef ARCH_AARCH64
             constexpr int64_t branchRange = 1LL << 27;
             int64_t displacement = static_cast<int64_t>(address)

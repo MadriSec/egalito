@@ -10,8 +10,22 @@ if [ "$(uname -m)" != aarch64 ]; then
     exit 2
 fi
 
+keep_artifacts=0
+if [ "${1:-}" = --keep ]; then
+    keep_artifacts=1
+    shift
+fi
+
 workdir=$(mktemp -d "${TMPDIR:-/tmp}/egalito-mirror-aarch64.XXXXXX") || exit 1
-echo "Logs and generated executables: $workdir"
+cleanup() {
+    status=$?
+    if [ "$status" -eq 0 ] && [ "$keep_artifacts" -eq 0 ]; then
+        rm -r -- "$workdir"
+    else
+        echo "Logs and generated executables kept at: $workdir"
+    fi
+}
+trap cleanup EXIT
 
 if [ "$#" -eq 0 ]; then
     set -- hello hello-strip hi0 hi0-strip hi5 fp jumptable islower \
