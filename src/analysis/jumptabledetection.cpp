@@ -968,6 +968,20 @@ void JumptableDetection::collectJumpsTo(UDState *state, JumptableInfo *info,
 bool JumptableDetection::parseBound(UDState *state, int reg,
     JumptableInfo *info) {
 
+    // Stop cyclic register moves (e.g. a loop that copies r1 to r15 and
+    // r15 back to r1) from recursing through getBoundFromMove until the
+    // stack overflows.
+    auto lookup = std::make_pair(state, reg);
+    if(activeBoundLookups.count(lookup)) {
+        return false;
+    }
+    activeBoundLookups.insert(lookup);
+    struct LookupGuard {
+        std::set<std::pair<UDState *, int>>& active;
+        std::pair<UDState *, int> lookup;
+        ~LookupGuard() { active.erase(lookup); }
+    } guard {activeBoundLookups, lookup};
+
 #ifdef ARCH_X86_64
     typedef TreePatternBinary<TreeNodeComparison,
         TreePatternCapture<TreePatternTerminal<TreeNodePhysicalRegister>>,
