@@ -50,6 +50,7 @@ private:
     // because the non-first use of index table requires complex analysis
     std::map<address_t /* index table base */, IndextableInfo> indexTables;
     std::set<std::pair<UDState *, int>> activeBaseAddressLookups;
+    std::set<std::pair<UDState *, int>> activeBoundLookups;
 
 public:
     JumptableDetection(Module *module) : module(module) {}
