@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <memory>
 
 #include "findsyscalls.h"
 #include "analysis/dataflow.h"
@@ -18,18 +19,51 @@ void FindSyscalls::visit(Function *function) {
     // equivalent to a syscall() instruction.
     if (isSyscallFunction(function)) return;
 
-    auto graph = new ControlFlowGraph(function);
+    // Fast pre-scan: skip expensive CFG + UseDef construction for functions
+    // that contain neither a syscall instruction nor a call to libc syscall().
+    bool hasSyscallCandidate = false;
+    for (auto block : CIter::children(function)) {
+        for (auto instr : CIter::children(block)) {
+            auto semantic = instr->getSemantic();
+            auto assembly = semantic->getAssembly();
+            if (assembly && assembly->getId() == X86_INS_SYSCALL) {
+                hasSyscallCandidate = true;
+                break;
+            }
+            if (auto cfi = dynamic_cast<ControlFlowInstruction *>(semantic)) {
+                auto link = cfi->getLink();
+                if (link) {
+                    auto target = link->getTarget();
+                    Function *func_target = nullptr;
+                    if (auto plt = dynamic_cast<PLTTrampoline *>(target)) {
+                        func_target = dynamic_cast<Function *>(plt->getTarget());
+                    }
+                    else {
+                        func_target = dynamic_cast<Function *>(target);
+                    }
+                    if (func_target && isSyscallFunction(func_target)) {
+                        hasSyscallCandidate = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (hasSyscallCandidate) break;
+    }
+    if (!hasSyscallCandidate) return;
+
+    std::unique_ptr<ControlFlowGraph> graph(new ControlFlowGraph(function));
     if(graph->getCount() == 0) {
         LOG(1, "Skipping function " << function->getName()
             << " with empty CFG");
-        delete graph;
         return;
     }
-    auto config = new UDConfiguration(graph);
-    auto working = new UDRegMemWorkingSet(function, graph);
-    auto usedef = new UseDef(config, working);
+    std::unique_ptr<UDConfiguration> config(new UDConfiguration(graph.get()));
+    std::unique_ptr<UDRegMemWorkingSet> working(
+        new UDRegMemWorkingSet(function, graph.get()));
+    std::unique_ptr<UseDef> usedef(new UseDef(config.get(), working.get()));
 
-    SccOrder order(graph);
+    SccOrder order(graph.get());
     order.genFull(0);
     usedef->analyze(order.get());
 
@@ -52,7 +86,9 @@ void FindSyscalls::visit(Function *function) {
             else if (auto cfi = dynamic_cast<ControlFlowInstruction *>(
                          instr->getSemantic())) {
                 Function *func_target;
-                auto target = cfi->getLink()->getTarget();
+                auto link = cfi->getLink();
+                if (!link) continue;
+                auto target = link->getTarget();
                 if (auto plt = dynamic_cast<PLTTrampoline *>(target)) {
                     func_target = dynamic_cast<Function *>(plt->getTarget());
                     // some PLT entry hasn't been resolved at this point.
@@ -97,6 +133,7 @@ void FindSyscalls::visit(Function *function) {
 #endif
         }
     }
+    seen.clear();
 #else
     assert(0);
 #endif
